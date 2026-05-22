@@ -128,7 +128,7 @@ body{min-height:100vh;min-height:100dvh;background:linear-gradient(160deg,#08081
   <div class="panel" id="class-panel"></div>
   <div class="panel" id="build-panel"></div>
   <div class="panel" id="summary-panel"></div>
-  <div class="footer">Sword × Staff Build Calculator • Data from lootandwaifus.com</div>
+  <div class="footer">Sword × Staff Build Calculator</div>
 </div>
 <div class="modal-overlay" id="modal">
   <div class="modal">
@@ -150,24 +150,24 @@ body{min-height:100vh;min-height:100dvh;background:linear-gradient(160deg,#08081
 const SB="https://ysxbglavmdngayvinrzk.supabase.co",SK="sb_publishable_w9keP2-21tJKR6FcF0YIQA_6q3ykBk-";
 const IB=`${SB}/storage/v1/object/public/skill-icons`,LW="https://lootandwaifus.com/skills/swordxstaff";
 const CL=[
-  {id:"Warrior",p:"Sword",c:"#e05252",i:"⚔️"},
-  {id:"Knight",p:"Sword",c:"#5b8dd9",i:"🛡️",pa:"Warrior"},
-  {id:"Duelist",p:"Sword",c:"#e8943a",i:"🗡️",pa:"Warrior"},
-  {id:"Paladin",p:"Sword",c:"#4a7bc8",i:"🏰",pa:"Knight"},
-  {id:"Berserker",p:"Sword",c:"#cc4422",i:"👹",pa:"Duelist"},
-  {id:"Guardian",p:"Sword",c:"#3a6ab5",i:"🗿",pa:"Paladin"},
-  {id:"Conqueror",p:"Sword",c:"#b33318",i:"👑",pa:"Berserker"},
-  {id:"Templar",p:"Sword",c:"#2d5a9e",i:"✝️",pa:"Guardian"},
-  {id:"Ravager",p:"Sword",c:"#992210",i:"🔥",pa:"Conqueror"},
-  {id:"Mage",p:"Staff",c:"#9b59b6",i:"🪄"},
-  {id:"Sorcerer",p:"Staff",c:"#8e44ad",i:"🔮",pa:"Mage"},
-  {id:"Sage",p:"Staff",c:"#27ae60",i:"📖",pa:"Mage"},
-  {id:"Archmage",p:"Staff",c:"#7d3c98",i:"💫",pa:"Sorcerer"},
-  {id:"Arcanist",p:"Staff",c:"#1e8449",i:"🌟",pa:"Sage"},
-  {id:"Destroyer",p:"Staff",c:"#6c3483",i:"💀",pa:"Archmage"},
-  {id:"Dominator",p:"Staff",c:"#196f3d",i:"🌙",pa:"Arcanist"},
-  {id:"Magister",p:"Staff",c:"#5b2c6f",i:"⚡",pa:"Destroyer"},
-  {id:"Prophet",p:"Staff",c:"#145a32",i:"🕊️",pa:"Dominator"},
+  {id:"Warrior",p:"Sword",c:"#e05252"},
+  {id:"Knight",p:"Sword",c:"#5b8dd9",pa:"Warrior"},
+  {id:"Duelist",p:"Sword",c:"#e8943a",pa:"Warrior"},
+  {id:"Paladin",p:"Sword",c:"#4a7bc8",pa:"Knight"},
+  {id:"Berserker",p:"Sword",c:"#cc4422",pa:"Duelist"},
+  {id:"Guardian",p:"Sword",c:"#3a6ab5",pa:"Paladin"},
+  {id:"Conqueror",p:"Sword",c:"#b33318",pa:"Berserker"},
+  {id:"Templar",p:"Sword",c:"#2d5a9e",pa:"Guardian"},
+  {id:"Ravager",p:"Sword",c:"#992210",pa:"Conqueror"},
+  {id:"Mage",p:"Staff",c:"#9b59b6"},
+  {id:"Sorcerer",p:"Staff",c:"#8e44ad",pa:"Mage"},
+  {id:"Sage",p:"Staff",c:"#27ae60",pa:"Mage"},
+  {id:"Archmage",p:"Staff",c:"#7d3c98",pa:"Sorcerer"},
+  {id:"Arcanist",p:"Staff",c:"#1e8449",pa:"Sage"},
+  {id:"Destroyer",p:"Staff",c:"#6c3483",pa:"Archmage"},
+  {id:"Dominator",p:"Staff",c:"#196f3d",pa:"Arcanist"},
+  {id:"Magister",p:"Staff",c:"#5b2c6f",pa:"Destroyer"},
+  {id:"Prophet",p:"Staff",c:"#145a32",pa:"Dominator"},
 ];
 const CM=Object.fromEntries(CL.map(c=>[c.id,c]));
 function gc(s){const r=[s];let x=s;while(CM[x]?.pa){x=CM[x].pa;r.unshift(x)}return r}
@@ -198,7 +198,7 @@ function rCP(){
     h+=`<div class="path-label">${path==="Sword"?"WARRIOR PATH":"MAGE PATH"}</div><div class="class-row">`;
     CL.filter(c=>c.p===path).forEach(c=>{
       const a=SC===c.id;
-      h+=`<button class="cls-btn${a?" active":""}" style="${a?`color:${c.c};border-color:${c.c};background:${c.c}18`:""}" onclick="SC=SC==='${c.id}'?null:'${c.id}';renderAll()">${c.i} ${c.id}</button>`;
+      h+=`<button class="cls-btn${a?" active":""}" style="${a?`color:${c.c};border-color:${c.c};background:${c.c}18`:""}" onclick="SC=SC==='${c.id}'?null:'${c.id}';renderAll()">${c.id}</button>`;
     });
     h+=`</div>`;
   });
