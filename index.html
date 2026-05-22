@@ -78,6 +78,10 @@ body{min-height:100vh;min-height:100dvh;background:linear-gradient(160deg,#08081
 .modal-header-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
 .modal-title{font-size:24px;font-weight:700}
 .modal-close{background:none;border:none;color:#888;font-size:32px;cursor:pointer;font-family:inherit;padding:6px 10px;min-height:50px;min-width:50px;display:flex;align-items:center;justify-content:center}
+.search-toggle{background:none;border:1px solid var(--bdr);border-radius:10px;color:var(--tx2);font-size:20px;cursor:pointer;padding:6px 12px;min-height:50px;min-width:50px;display:flex;align-items:center;justify-content:center;transition:.15s}
+.search-toggle.active{background:rgba(91,141,217,.15);border-color:var(--tech);color:var(--tech)}
+.search-wrapper{display:none;margin-bottom:4px}
+.search-wrapper.open{display:block}
 .modal-search{width:100%;padding:14px 18px;border-radius:12px;border:1px solid var(--bdr);background:rgba(0,0,0,.3);color:var(--tx);font-size:18px;outline:none;font-family:inherit}
 .modal-search:focus{border-color:var(--tech)}
 .filter-row{display:flex;gap:7px;flex-wrap:nowrap;margin-top:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;scrollbar-width:none}
@@ -146,9 +150,14 @@ body{min-height:100vh;min-height:100dvh;background:linear-gradient(160deg,#08081
     <div class="modal-header">
       <div class="modal-header-row">
         <span class="modal-title" id="modal-title">Select Skill</span>
-        <button class="modal-close" onclick="closePicker()">✕</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="search-toggle" id="search-toggle" onclick="toggleSearch()">🔍</button>
+          <button class="modal-close" onclick="closePicker()">✕</button>
+        </div>
       </div>
-      <input class="modal-search" id="modal-search" placeholder="Search skills..." oninput="renderPicker()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <div class="search-wrapper" id="search-wrapper">
+        <input class="modal-search" id="modal-search" placeholder="Search skills..." oninput="renderPicker()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      </div>
       <div class="filter-row" id="filter-row"></div>
     </div>
     <div class="modal-body" id="modal-body"></div>
@@ -250,10 +259,19 @@ function openPicker(type,idx){
   PT=type;PS=idx;PF="all";
   document.getElementById("modal-title").textContent=`Select ${type}`;
   document.getElementById("modal-search").value="";
+  document.getElementById("search-wrapper").classList.remove("open");
+  document.getElementById("search-toggle").classList.remove("active");
   rFR();renderPicker();
   document.getElementById("modal").classList.add("open");
   document.body.style.overflow="hidden";
-  setTimeout(()=>document.getElementById("modal-search").focus(),150);
+}
+function toggleSearch(){
+  const w=document.getElementById("search-wrapper");
+  const b=document.getElementById("search-toggle");
+  const open=w.classList.toggle("open");
+  b.classList.toggle("active",open);
+  if(open){document.getElementById("modal-search").focus()}
+  else{document.getElementById("modal-search").value="";renderPicker()}
 }
 function closePicker(){document.getElementById("modal").classList.remove("open");document.body.style.overflow=""}
 function rFR(){
