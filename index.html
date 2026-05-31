@@ -57,6 +57,15 @@ body{min-height:100vh;min-height:100dvh;background:linear-gradient(160deg,#08081
 .skill-type{font-size:15px;font-weight:500}
 .skill-type.technique{color:var(--tech)}
 .skill-type.charm{color:var(--chrm)}
+.skill-elem{font-size:11px;padding:2px 8px;border-radius:5px;font-weight:600}
+.skill-cd{font-size:11px;padding:2px 8px;border-radius:5px;font-weight:600;background:rgba(255,255,255,.06);color:var(--tx2);border:1px solid var(--bdr)}
+.skill-dmg{font-size:11px;padding:2px 8px;border-radius:5px;font-weight:700;background:rgba(255,138,101,.12);color:var(--acc2);border:1px solid rgba(255,138,101,.3)}
+.rarity-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.rarity-label{font-size:12px;color:var(--tx3);font-weight:600;margin-right:2px}
+.rbtn{padding:6px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid var(--bdr);background:rgba(255,255,255,.03);color:var(--tx3);min-height:38px}
+.rbtn.active{color:#0a0a16}
+.skill-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.skill-tag{font-size:11px;padding:2px 8px;border-radius:5px;font-weight:500;background:rgba(255,255,255,.04);color:var(--tx3);border:1px solid var(--bdr)}
 .skill-desc{font-size:14px;color:#888;margin-top:6px;line-height:1.45}
 .remove-btn{position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:16px;background:rgba(200,50,50,.85);border:none;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 @media(hover:hover){.remove-btn{opacity:0;transition:.15s}.skill-card:hover .remove-btn{opacity:1}}
@@ -161,6 +170,7 @@ body{min-height:100vh;min-height:100dvh;background:linear-gradient(160deg,#08081
         <input class="modal-search" id="modal-search" placeholder="Search skills..." oninput="renderPicker()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       </div>
       <div class="filter-row" id="filter-row"></div>
+      <div class="rarity-row" id="rarity-row"></div>
     </div>
     <div class="modal-body" id="modal-body"></div>
   </div>
@@ -196,6 +206,10 @@ function iu(s){const n=typeof s.id==="string"?s.id.replace("skill_",""):s.id;ret
 function iuf(s){const n=typeof s.id==="string"?s.id.replace("skill_",""):s.id;return`${LW}/skill_${n}.webp`}
 
 let AS=[],SC=null,T=[null,null,null,null],C_=[null,null,null,null],PT="Technique",PS=0,PF="all";
+const RIDX={Rare:1,Epic:4,Legendary:8,Mythic:14,Divine:22,Rainbow:33};
+const RARITIES=["Rare","Epic","Legendary","Mythic","Divine","Rainbow"];
+const RCOL={Rare:"#5f9aff",Epic:"#9660c4",Legendary:"#e68a23",Mythic:"#ebed63",Divine:"#e05252",Rainbow:"#e884e8"};
+let RARITY="Legendary";
 
 async function init(){
   try{
@@ -228,11 +242,25 @@ function rCP(){
 }
 function mc(sk,type,desc){
   const cc=CM[sk.class]?.c||"#888";
+  const ec=elemColor(sk.element);
+  let meta=`<span class="skill-class" style="background:${cc}18;color:${cc};border:1px solid ${cc}33">${sk.class}</span>`;
+  meta+=`<span class="skill-type ${type.toLowerCase()}">${type}</span>`;
+  if(sk.element)meta+=`<span class="skill-elem" style="background:${ec}1f;color:${ec};border:1px solid ${ec}40">${sk.element}</span>`;
+  if(sk.cooldown!=null&&sk.cooldown>0)meta+=`<span class="skill-cd">CD ${sk.cooldown}</span>`;
+  else if(sk.cooldown===0)meta+=`<span class="skill-cd">No CD</span>`;
+  if(sk.damage&&sk.damage.length){
+    const v=sk.damage[RIDX[RARITY]];
+    if(v!=null)meta+=`<span class="skill-dmg">${v}% ${RARITY}</span>`;
+  }
+  let tagsHtml="";
+  if(desc&&sk.tags&&sk.tags.length)tagsHtml=`<div class="skill-tags">${sk.tags.map(t=>`<span class="skill-tag">${t}</span>`).join("")}</div>`;
   return`<div class="skill-icon"><img src="${iu(sk)}" onerror="this.onerror=null;this.src='${iuf(sk)}'" alt=""></div>
   <div class="skill-info"><div class="skill-name">${sk.name}</div>
-  <div class="skill-meta"><span class="skill-class" style="background:${cc}18;color:${cc};border:1px solid ${cc}33">${sk.class}</span>
-  <span class="skill-type ${type.toLowerCase()}">${type}</span></div>
-  ${desc&&sk.description?`<div class="skill-desc">${sk.description}</div>`:""}</div>`;
+  <div class="skill-meta">${meta}</div>
+  ${desc&&sk.description?`<div class="skill-desc">${sk.description}</div>`:""}${tagsHtml}</div>`;
+}
+function elemColor(e){
+  return {Physical:"#b0a89a",Fire:"#e8703a",Water:"#3aa5e8",Wind:"#5ec98a",Light:"#ecd25a",Dark:"#a06cd0"}[e]||"#888";
 }
 function rBP(){
   const p=document.getElementById("build-panel");let h="";
@@ -263,9 +291,17 @@ function openPicker(type,idx){
   document.getElementById("modal-search").value="";
   document.getElementById("search-wrapper").classList.remove("open");
   document.getElementById("search-toggle").classList.remove("active");
-  rFR();renderPicker();
+  rFR();rRR();renderPicker();
   document.getElementById("modal").classList.add("open");
   document.body.style.overflow="hidden";
+}
+function rRR(){
+  let h=`<span class="rarity-label">DMG @</span>`;
+  RARITIES.forEach(r=>{
+    const a=RARITY===r;
+    h+=`<button class="rbtn${a?" active":""}" style="${a?`background:${RCOL[r]};border-color:${RCOL[r]}`:`color:${RCOL[r]}`}" onclick="RARITY='${r}';rRR();renderPicker()">${r}</button>`;
+  });
+  document.getElementById("rarity-row").innerHTML=h;
 }
 function toggleSearch(){
   const w=document.getElementById("search-wrapper");
