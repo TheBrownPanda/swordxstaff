@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Sword × Staff Boss DPS Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080810;--card:#0e0e1c;--card2:#12122a;--bdr:rgba(255,255,255,.06);--bdr2:rgba(255,255,255,.12);
+  --tx:#e8e6e3;--tx2:#aaa;--tx3:#666;--acc:#ffd54f;--acc2:#ff8a65;
+  --tech:#5b8dd9;--chrm:#c084fc;--ok:#6fae5a;--bad:#e0574a;
+}
+html{background:var(--bg);color:var(--tx);font-family:'Outfit',system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+body{min-height:100vh;min-height:100dvh;background:linear-gradient(160deg,#080810,#0e0e1c 40%,#0c1428)}
+.header{padding:20px 24px;border-bottom:1px solid var(--bdr);background:rgba(0,0,0,.5);backdrop-filter:blur(14px);position:sticky;top:0;z-index:100}
+.header-inner{max-width:860px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.logo{font-size:26px;font-weight:800;background:linear-gradient(135deg,var(--acc),var(--acc2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo-sub{font-size:14px;color:var(--tx3);margin-top:2px}
+.nav{display:flex;gap:8px}
+.nav a{padding:10px 16px;border-radius:10px;border:1px solid var(--bdr);background:rgba(255,255,255,.04);color:var(--tx2);font-size:14px;font-weight:600;text-decoration:none;transition:.15s}
+.nav a.active{color:var(--acc);border-color:rgba(255,213,79,.35)}
+
+.container{padding:20px;max-width:860px;margin:0 auto}
+.tabs{display:flex;gap:6px;background:var(--card);padding:6px;border-radius:14px;margin-bottom:20px;border:1px solid var(--bdr)}
+.tab{flex:1;padding:12px;border:none;background:transparent;color:var(--tx2);border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+.tab.active{background:var(--acc);color:#0a0a16;font-weight:700}
+
+.panel{background:var(--card);border:1px solid var(--bdr);border-radius:18px;padding:22px;margin-bottom:20px}
+.panel-title{font-size:16px;font-weight:700;color:var(--tx2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
+
+.upload-zone{border:1px dashed var(--acc2);border-radius:12px;padding:16px;text-align:center;color:var(--acc);cursor:pointer;background:rgba(255,138,101,.04);font-size:14px;font-weight:600;margin-bottom:14px;display:block}
+.upload-zone.busy{cursor:wait;opacity:.7}
+.ocr-status{font-size:13px;color:var(--ok);margin-bottom:12px}
+.ocr-raw{font-size:11px;color:var(--tx3);white-space:pre-wrap;background:var(--bg);padding:10px;border-radius:8px;margin-top:8px;max-height:140px;overflow:auto}
+
+.field{display:flex;align-items:center;gap:10px;padding:4px 0}
+.field label{flex:1;color:var(--tx3);font-size:13px}
+.field input,.field select{background:var(--bg);border:1px solid var(--bdr);color:var(--tx);padding:7px 10px;border-radius:7px;font-size:14px;font-family:inherit;width:130px;text-align:right}
+.field select{text-align:left}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px}
+.statgrid{display:grid;grid-template-columns:1fr 1fr;gap:2px 20px;margin-top:6px}
+
+.input{width:100%;background:var(--bg);border:1px solid var(--bdr);color:var(--tx);padding:10px 12px;border-radius:8px;font-size:15px;font-family:inherit;margin-bottom:10px}
+.btn{padding:11px 18px;border-radius:10px;border:1px solid var(--bdr);background:rgba(255,255,255,.04);color:var(--tx);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--acc);color:#0a0a16;border-color:var(--acc);font-weight:700}
+.btn.ghost{border-style:dashed;color:var(--acc);width:100%;background:transparent}
+.btn.danger{color:var(--bad);border-color:rgba(224,87,74,.3)}
+.btn.sm{padding:7px 12px;font-size:13px}
+
+.member-card{background:var(--card2);border:1px solid var(--bdr);border-radius:14px;padding:16px;margin-bottom:14px}
+.member-head{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+.member-head input{flex:1}
+.skill-slots{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.slot{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;border:1px solid var(--bdr);background:var(--bg);cursor:pointer;min-height:56px}
+.slot.empty{border-style:dashed;color:#444;justify-content:center}
+.slot-num{width:22px;height:22px;border-radius:11px;background:rgba(255,255,255,.06);color:var(--tx3);font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:700}
+.slot-icon{width:40px;height:40px;border-radius:8px;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,.04)}
+.slot-icon img{width:100%;height:100%;object-fit:cover}
+.slot-info{flex:1;min-width:0}
+.slot-name{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slot-meta{font-size:12px;color:var(--tx3);margin-top:2px}
+.slot-rm{background:rgba(200,50,50,.2);border:none;color:#e88;width:26px;height:26px;border-radius:13px;cursor:pointer;flex-shrink:0}
+
+.bar-wrap{height:18px;background:var(--bg);border-radius:9px;overflow:hidden;border:1px solid var(--bdr);margin:8px 0}
+.bar{height:100%;transition:width .5s;border-radius:9px}
+.verdict{text-align:center;font-size:20px;font-weight:800;margin:10px 0}
+.big-num{font-size:36px;font-weight:800;color:var(--acc);text-align:center;font-family:inherit}
+.res-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--bdr);font-size:14px}
+.trace{font-size:12px;color:var(--tx3);background:var(--bg);border-radius:8px;padding:10px;max-height:240px;overflow:auto;margin-top:10px;line-height:1.6}
+.note{font-size:12px;color:var(--tx3);line-height:1.6;margin-top:14px}
+
+.modal-overlay{position:fixed;inset:0;z-index:1000;display:none;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.7);backdrop-filter:blur(4px)}
+.modal-overlay.open{display:flex}
+.modal{background:linear-gradient(180deg,#141428,#0c1428);border:1px solid rgba(255,255,255,.1);border-radius:22px 22px 0 0;width:100%;max-width:640px;max-height:90vh;display:flex;flex-direction:column}
+.modal-header{padding:18px 22px 12px;border-bottom:1px solid var(--bdr)}
+.modal-header-row{display:flex;justify-content:space-between;align-items:center}
+.modal-title{font-size:20px;font-weight:700}
+.modal-close{background:none;border:none;color:#888;font-size:28px;cursor:pointer}
+.modal-search{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--bdr);background:rgba(0,0,0,.3);color:var(--tx);font-size:16px;margin-top:12px;font-family:inherit}
+.modal-body{flex:1;overflow-y:auto;padding:12px 18px 30px;display:flex;flex-direction:column;gap:8px}
+.pick-card{display:flex;align-items:center;gap:12px;padding:12px;border-radius:10px;border:1px solid var(--bdr);background:rgba(255,255,255,.02);cursor:pointer}
+.pick-card:active{background:rgba(255,255,255,.05)}
+
+.loading{min-height:60vh;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--tx3)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--card2);border:1px solid var(--bdr2);padding:12px 20px;border-radius:10px;font-size:14px;z-index:2000;opacity:0;transition:.3s;pointer-events:none}
+.toast.show{opacity:1}
+@media(max-width:560px){.grid2,.statgrid{grid-template-columns:1fr}.modal-overlay{align-items:flex-end}}
+</style>
+</head>
+<body>
+<div class="header"><div class="header-inner">
+  <div><div class="logo">⚔️ Boss DPS Simulator</div><div class="logo-sub" id="sub">50-round guild boss rotation</div></div>
+  <div class="nav"><a href="index.html">Builds</a><a href="#" class="active">Simulator</a></div>
+</div></div>
+
+<div class="container" id="app" style="display:none">
+  <div class="tabs">
+    <button class="tab active" data-tab="boss" onclick="setTab('boss')">Boss</button>
+    <button class="tab" data-tab="roster" onclick="setTab('roster')">Roster</button>
+    <button class="tab" data-tab="results" onclick="setTab('results')">Results</button>
+  </div>
+  <div id="tab-boss"></div>
+  <div id="tab-roster" style="display:none"></div>
+  <div id="tab-results" style="display:none"></div>
+</div>
+
+<div class="loading" id="loading"><div><div style="font-size:38px">⚔️</div><div>Loading skills &amp; roster…</div></div></div>
+
+<div class="modal-overlay" id="modal"><div class="modal">
+  <div class="modal-header"><div class="modal-header-row">
+    <span class="modal-title" id="modal-title">Select Skill</span>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <input class="modal-search" id="modal-search" placeholder="Search skills…" oninput="renderPicker()" autocomplete="off">
+  </div>
+  <div class="modal-body" id="modal-body"></div>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.0/tesseract.min.js"></script>
+<script>
+// ============================================================
+// Config — same Supabase as the build calculator
+// ============================================================
+const SB="https://ysxbglavmdngayvinrzk.supabase.co";
+const SK="sb_publishable_w9keP2-21tJKR6FcF0YIQA_6q3ykBk-";
+const IB=`${SB}/storage/v1/object/public/skill-icons`;
+const LW="https://lootandwaifus.com/skills/swordxstaff";
+const H={apikey:SK,Authorization:`Bearer ${SK}`,"Content-Type":"application/json"};
+
+const RIDX={Rare:1,Epic:4,Legendary:8,Mythic:14,Divine:22,Rainbow:33};
+const RARITIES=["Rare","Epic","Legendary","Mythic","Divine","Rainbow"];
+const ELEMENTS=["Physical","Wind","Water","Fire","Light","Dark"];
+const ROUNDS=50;
+
+// stat keys recognized by OCR / shown in editor
+const STAT_KEYS=["ATK","DEF","HP","SPD","Resilience","Crit Rate","Crit DMG","Crit RES","Block Rate","Block Efficiency","Accuracy","DMG Boost","DMG RES","Healing Boost","PvP Bonus DMG","PvP DMG RES","PvE Bonus DMG","PvE DMG RES","Effect Hit Rate","Effect RES","Elemental Mastery","Elemental RES","Physical Mastery","Physical RES","Wind Affinity","Water Affinity","Fire Affinity","Light Affinity","Dark Affinity","Wind Aegis","Water Aegis","Fire Aegis","Light Aegis","Dark Aegis"];
+const PCT=new Set(["Crit Rate","Crit DMG","Crit RES","Block Rate","Block Efficiency","Accuracy","DMG Boost","DMG RES","Healing Boost","PvP Bonus DMG","PvP DMG RES","PvE Bonus DMG","PvE DMG RES"]);
+
+let ALL_SKILLS=[],SKILL_MAP={};
+let boss={name:"Guild Boss",stats:{},rounds:50,id:null};
+let roster=[];
+let curTab="boss";
+
+// ============================================================
+// Value parsing (K/M/B expansion) + OCR label matching
+// ============================================================
+function parseVal(raw){
+  if(raw==null)return null;
+  let v=String(raw).trim().replace(/%/g,"").replace(/,/g,"");
+  const m=v.match(/^([\d.]+)\s*([KMB])?$/i);
+  if(!m)return null;
+  const n=parseFloat(m[1]); if(isNaN(n))return null;
+  return n*({K:1e3,M:1e6,B:1e9,"":1}[(m[2]||"").toUpperCase()]);
+}
+function lev(a,b){a=a.toLowerCase();b=b.toLowerCase();const d=Array.from({length:a.length+1},(_,i)=>[i,...Array(b.length).fill(0)]);for(let j=0;j<=b.length;j++)d[0][j]=j;for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[a.length][b.length]}
+function matchLabel(t){let best=null,bd=Infinity;for(const k of STAT_KEYS){const d=lev(t,k);if(d<bd){bd=d;best=k}}return bd<=Math.max(2,Math.floor(best.length*0.34))?best:null}
+function parseOCR(text){
+  const out={};
+  text.split("\n").map(l=>l.trim()).filter(Boolean).forEach(line=>{
+    const m=line.match(/^(.*?)[\s.:]*([\d.]+\s*[KMB]?%?)\s*$/i);
+    if(!m)return;
+    const lbl=m[1].replace(/[^A-Za-z\s]/g,"").trim();
+    if(!lbl)return;
+    const key=matchLabel(lbl); if(!key)return;
+    const val=parseVal(m[2]); if(val==null)return;
+    if(!(key in out))out[key]=val;
+  });
+  return out;
+}
+
+// ============================================================
+// Image preprocessing (2x upscale + grayscale + contrast)
+// ============================================================
+function preprocess(file){
+  return new Promise((res,rej)=>{
+    const img=new Image();
+    img.onload=()=>{
+      const s=2,cv=document.createElement("canvas");
+      cv.width=img.width*s;cv.height=img.height*s;
+      const ctx=cv.getContext("2d");
+      ctx.imageSmoothingQuality="high";
+      ctx.drawImage(img,0,0,cv.width,cv.height);
+      const d=ctx.getImageData(0,0,cv.width,cv.height),p=d.data;
+      let mn=255,mx=0;
+      for(let i=0;i<p.length;i+=4){const g=(p[i]*.299+p[i+1]*.587+p[i+2]*.114)|0;p[i]=p[i+1]=p[i+2]=g;if(g<mn)mn=g;if(g>mx)mx=g}
+      const r=Math.max(1,mx-mn);
+      for(let i=0;i<p.length;i+=4){const g=Math.min(255,Math.max(0,(p[i]-mn)/r*255))|0;p[i]=p[i+1]=p[i+2]=g}
+      ctx.putImageData(d,0,0);
+      res(cv.toDataURL("image/png"));
+    };
+    img.onerror=rej;
+    img.src=URL.createObjectURL(file);
+  });
+}
+let _worker=null;
+async function ocrWorker(){if(_worker)return _worker;_worker=await Tesseract.createWorker("eng");await _worker.setParameters({tessedit_pageseg_mode:"6",tessedit_char_whitelist:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.%KMB "});return _worker}
+async function runOCR(files,onDone,setStatus){
+  const merged={};let raw="";
+  const w=await ocrWorker();
+  for(let i=0;i<files.length;i++){
+    setStatus(`Reading image ${i+1}/${files.length}…`);
+    const url=await preprocess(files[i]);
+    const{data}=await w.recognize(url);
+    raw+=`--- image ${i+1} ---\n${data.text}\n`;
+    Object.entries(parseOCR(data.text)).forEach(([k,v])=>{if(!(k in merged))merged[k]=v});
+  }
+  onDone(merged,raw);
+}
+
+// ============================================================
+// 乘区 damage model — per single cast of a skill
+// ============================================================
+function skillCast(member,skill,boss,buffPct){
+  const S=member.stats||{}, B=boss.stats||{};
+  const atk=S.ATK||0, def=B.DEF||0;
+  const defMit=(atk+def)>0?atk/(atk+def):0;
+  const critAvg=1+((S["Crit Rate"]||0)/100)*((S["Crit DMG"]||0)/100);
+  const dmgBoost=1+((S["DMG Boost"]||0)/100)+ (buffPct||0)/100;   // damage-boost zone (+ active buffs)
+  const pve=1+((S["PvE Bonus DMG"]||0)/100);
+  const dmgRes=1-((B["DMG RES"]||0)/100);
+  // elemental affinity vs aegis (or physical mastery vs res)
+  let aff=1;
+  if(member.damage_type!=="Physical"){
+    const a=S[`${member.damage_type} Affinity`]||0, g=B[`${member.damage_type} Aegis`]||0;
+    aff=(a+g)>0?a/(a+g):1;
+  }else{
+    const ms=S["Physical Mastery"]||0, rs=B["Physical RES"]||0;
+    aff=(ms+rs)>0?ms/(ms+rs):1;
+  }
+  const blockRate=(B["Block Rate"]||0)/100, blockEff=(B["Block Efficiency"]||0)/100;
+  const blockMod=1-blockRate*blockEff;
+  // skill multiplier from the damage array at member's rarity index
+  let mult=1;
+  if(skill.damage&&skill.damage.length){const v=skill.damage[RIDX[member.rarity||"Legendary"]];if(v!=null)mult=v/100}
+  return Math.max(0, atk*mult*defMit*aff*critAvg*dmgBoost*pve*dmgRes*blockMod);
+}
+
+// ============================================================
+// 50-round rotation simulator
+// Each round: scan technique slots L→R, cast FIRST off-cooldown skill.
+// Charms = passive buff sources (their tag "Buff" contributes a flat zone bump).
+// ============================================================
+const BUFF_PER_CHARM=8; // tunable: each Buff-tagged charm adds this % to dmg-boost zone
+
+function simulateMember(member,boss){
+  const skills=(member.technique_ids||[]).map(id=>SKILL_MAP[id]).filter(Boolean);
+  if(!skills.length)return{total:0,trace:[],casts:0};
+  const cdReady=skills.map(()=>0); // round index when each slot becomes available
+  // passive buff from charms tagged "Buff"
+  const charms=(member.charm_ids||[]).map(id=>SKILL_MAP[id]).filter(Boolean);
+  const buffPct=charms.filter(c=>(c.tags||[]).includes("Buff")).length*BUFF_PER_CHARM;
+  let total=0,casts=0;const trace=[];
+  for(let r=0;r<boss.rounds;r++){
+    const fired=[];let roundDmg=0;
+    // cast EVERY off-cooldown technique this round, left→right
+    for(let s=0;s<skills.length;s++){
+      if(cdReady[s]<=r){
+        const sk=skills[s];
+        const dmg=skillCast(member,sk,boss,buffPct);
+        total+=dmg;roundDmg+=dmg;casts++;
+        cdReady[s]=r+1+(sk.cooldown||0); // unavailable for `cd` rounds after this one
+        fired.push(`s${s+1} ${sk.name} ${fmt(dmg)}`);
+      }
+    }
+    trace.push(`R${r+1}: ${fired.length?fired.join(" · ")+` = ${fmt(roundDmg)}`:"(all on CD)"}`);
+  }
+  return{total,trace,casts,buffPct};
+}
+
+function simulate(){
+  const results=roster.map(m=>{const s=simulateMember(m,boss);return{member:m,...s}});
+  const total=results.reduce((a,r)=>a+r.total,0);
+  const hp=boss.stats.HP||0;
+  const killed=hp>0&&total>=hp;
+  const avg=results.length?total/results.length:0;
+  const needed=(avg>0&&hp>0)?Math.ceil(hp/avg):null;
+  return{results,total,hp,killed,avg,needed};
+}
+
+// ============================================================
+// Formatting + toast
+// ============================================================
+function fmt(n){if(n==null||isNaN(n))return"0";if(n>=1e9)return(n/1e9).toFixed(2)+"B";if(n>=1e6)return(n/1e6).toFixed(2)+"M";if(n>=1e3)return(n/1e3).toFixed(1)+"K";return Math.round(n).toString()}
+function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800)}
+
+// ============================================================
+// Boss tab
+// ============================================================
+function renderBoss(){
+  const el=document.getElementById("tab-boss");
+  el.innerHTML=`
+  <div class="panel">
+    <div class="panel-title">Boss Setup</div>
+    <input class="input" id="boss-name" value="${boss.name}" oninput="boss.name=this.value">
+    <div class="grid2" style="margin-bottom:12px">
+      <div class="field"><label>Rounds</label><input type="number" id="boss-rounds" value="${boss.rounds}" onchange="boss.rounds=parseInt(this.value)||50"></div>
+    </div>
+    <label class="upload-zone" id="boss-up">📷 Upload boss stat screenshots (multiple ok)
+      <input type="file" accept="image/*" multiple hidden onchange="onBossOCR(this.files)"></label>
+    <div class="ocr-status" id="boss-ocr"></div>
+    <div id="boss-raw"></div>
+    <div class="statgrid" id="boss-stats"></div>
+    <div style="margin-top:16px;display:flex;gap:10px">
+      <button class="btn primary" onclick="saveBoss()">Save Boss</button>
+    </div>
+  </div>`;
+  renderStatEditor("boss-stats",boss.stats,(k,v)=>boss.stats[k]=v);
+}
+function renderStatEditor(containerId,stats,onSet){
+  const c=document.getElementById(containerId);if(!c)return;
+  c.innerHTML=STAT_KEYS.map(k=>`<div class="field"><label>${k}</label><input value="${stats[k]!=null?stats[k]:""}" oninput="window.__set('${containerId}','${k}',this.value)">${PCT.has(k)?'<span style="color:#666;font-size:12px">%</span>':''}</div>`).join("");
+  c.__onSet=onSet;
+}
+window.__set=(cid,k,v)=>{const c=document.getElementById(cid);const num=v===""?null:(parseVal(v)??parseFloat(v));if(c&&c.__onSet)c.__onSet(k,num)};
+async function onBossOCR(files){
+  if(!files.length)return;
+  const zone=document.getElementById("boss-up");zone.classList.add("busy");
+  await runOCR([...files],(merged,raw)=>{
+    Object.assign(boss.stats,merged);
+    document.getElementById("boss-ocr").textContent=`Extracted ${Object.keys(merged).length} stats — review below.`;
+    document.getElementById("boss-raw").innerHTML=`<details><summary style="color:#666;font-size:11px;cursor:pointer">raw OCR</summary><div class="ocr-raw">${raw}</div></details>`;
+    renderStatEditor("boss-stats",boss.stats,(k,v)=>boss.stats[k]=v);
+    zone.classList.remove("busy");
+  },s=>document.getElementById("boss-ocr").textContent=s);
+}
+async function saveBoss(){
+  const body={name:boss.name,stats:boss.stats,rounds:boss.rounds};
+  try{
+    let r;
+    if(boss.id){r=await fetch(`${SB}/rest/v1/bosses?id=eq.${boss.id}`,{method:"PATCH",headers:H,body:JSON.stringify(body)});}
+    else{r=await fetch(`${SB}/rest/v1/bosses`,{method:"POST",headers:{...H,Prefer:"return=representation"},body:JSON.stringify(body)});const d=await r.json();if(d[0])boss.id=d[0].id;}
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    toast("Boss saved");
+  }catch(e){toast("Save failed: "+e.message)}
+}
+
+// ============================================================
+// Roster tab
+// ============================================================
+function renderRoster(){
+  const el=document.getElementById("tab-roster");
+  el.innerHTML=roster.map((m,i)=>memberCard(m,i)).join("")+
+    `<button class="btn ghost" onclick="addMember()">+ Add Member</button>
+     <button class="btn primary" style="width:100%;margin-top:10px" onclick="saveRoster()">💾 Save Roster to Supabase</button>`;
+  roster.forEach(m=>renderStatEditor("stats-"+m._k,m.stats,(k,v)=>m.stats[k]=v));
+}
+function memberCard(m,i){
+  const techSlots=[0,1,2,3].map(s=>slotHtml(m,"technique",s)).join("");
+  const charmSlots=[0,1,2,3].map(s=>slotHtml(m,"charm",s)).join("");
+  return `<div class="member-card">
+    <div class="member-head">
+      <input class="input" style="margin:0" value="${m.name}" oninput="setMember('${m._k}','name',this.value)">
+      <button class="btn danger sm" onclick="removeMember('${m._k}')">Remove</button>
+    </div>
+    <div class="grid2" style="margin-bottom:10px">
+      <div class="field"><label>Damage Type</label><select onchange="setMember('${m._k}','damage_type',this.value)">${ELEMENTS.map(e=>`<option ${m.damage_type===e?"selected":""}>${e}</option>`).join("")}</select></div>
+      <div class="field"><label>Skill Rarity</label><select onchange="setMember('${m._k}','rarity',this.value)">${RARITIES.map(rr=>`<option ${m.rarity===rr?"selected":""}>${rr}</option>`).join("")}</select></div>
+    </div>
+    <div style="font-size:12px;color:var(--tx3);font-weight:700;letter-spacing:1px;margin:6px 0">TECHNIQUES (cast left→right)</div>
+    <div class="skill-slots">${techSlots}</div>
+    <div style="font-size:12px;color:var(--tx3);font-weight:700;letter-spacing:1px;margin:6px 0">CHARMS (passive)</div>
+    <div class="skill-slots">${charmSlots}</div>
+    <label class="upload-zone" style="margin-top:10px">📷 OCR character stats
+      <input type="file" accept="image/*" multiple hidden onchange="onMemberOCR('${m._k}',this.files)"></label>
+    <div class="ocr-status" id="ocr-${m._k}"></div>
+    <details><summary style="color:var(--acc);font-size:13px;cursor:pointer;margin:8px 0">edit panel stats</summary>
+      <div class="statgrid" id="stats-${m._k}"></div></details>
+  </div>`;
+}
+function slotHtml(m,type,s){
+  const ids=type==="technique"?m.technique_ids:m.charm_ids;
+  const sk=SKILL_MAP[ids[s]];
+  if(!sk)return`<div class="slot empty" onclick="openPicker('${m._k}','${type}',${s})"><span class="slot-num">${s+1}</span> + Add ${type}</div>`;
+  const cd=sk.cooldown!=null?`CD ${sk.cooldown}`:"";
+  const dmg=sk.damage&&sk.damage.length&&sk.damage[RIDX[m.rarity]]!=null?` · ${sk.damage[RIDX[m.rarity]]}%`:"";
+  return`<div class="slot" onclick="openPicker('${m._k}','${type}',${s})">
+    <span class="slot-num">${s+1}</span>
+    <div class="slot-icon"><img src="${iconUrl(sk)}" onerror="this.onerror=null;this.src='${iconFallback(sk)}'"></div>
+    <div class="slot-info"><div class="slot-name">${sk.name}</div><div class="slot-meta">${sk.element||""} ${cd}${dmg}</div></div>
+    <button class="slot-rm" onclick="event.stopPropagation();clearSlot('${m._k}','${type}',${s})">×</button>
+  </div>`;
+}
+function iconUrl(s){const n=String(s.id).replace("skill_","");return`${IB}/sprite_skill_${n}.png`}
+function iconFallback(s){const n=String(s.id).replace("skill_","");return`${LW}/skill_${n}.webp`}
+
+let _k=1;
+function addMember(){roster.push({_k:"m"+(_k++),id:null,name:`Member ${roster.length+1}`,class:"",damage_type:"Physical",rarity:"Legendary",stats:{},technique_ids:[],charm_ids:[]});renderRoster()}
+function removeMember(k){const m=roster.find(x=>x._k===k);if(m&&m.id)fetch(`${SB}/rest/v1/roster_members?id=eq.${m.id}`,{method:"DELETE",headers:H});roster=roster.filter(x=>x._k!==k);renderRoster()}
+function setMember(k,field,val){const m=roster.find(x=>x._k===k);if(m)m[field]=val}
+function clearSlot(k,type,s){const m=roster.find(x=>x._k===k);const ids=type==="technique"?m.technique_ids:m.charm_ids;ids[s]=null;renderRoster()}
+async function onMemberOCR(k,files){
+  if(!files.length)return;const m=roster.find(x=>x._k===k);
+  await runOCR([...files],(merged,raw)=>{
+    Object.assign(m.stats,merged);
+    document.getElementById("ocr-"+k).textContent=`Extracted ${Object.keys(merged).length} stats.`;
+    renderRoster();
+  },s=>document.getElementById("ocr-"+k).textContent=s);
+}
+
+// Skill picker modal
+let pickCtx=null;
+function openPicker(k,type,s){
+  pickCtx={k,type,s};
+  const skType=type==="technique"?"Technique":"Charm";
+  document.getElementById("modal-title").textContent=`Select ${skType}`;
+  document.getElementById("modal-search").value="";
+  renderPicker();
+  document.getElementById("modal").classList.add("open");
+}
+function closeModal(){document.getElementById("modal").classList.remove("open");pickCtx=null}
+function renderPicker(){
+  if(!pickCtx)return;
+  const q=document.getElementById("modal-search").value.toLowerCase();
+  const skType=pickCtx.type==="technique"?"Technique":"Charm";
+  let list=ALL_SKILLS.filter(s=>s.type===skType&&s.name);
+  if(q)list=list.filter(s=>s.name.toLowerCase().includes(q)||(s.description||"").toLowerCase().includes(q));
+  list=list.slice(0,200);
+  document.getElementById("modal-body").innerHTML=list.length?list.map(s=>{
+    const cd=s.cooldown!=null?`CD ${s.cooldown}`:"";
+    return`<div class="pick-card" onclick="pickSkill('${s.id}')">
+      <div class="slot-icon"><img src="${iconUrl(s)}" onerror="this.onerror=null;this.src='${iconFallback(s)}'"></div>
+      <div class="slot-info"><div class="slot-name">${s.name}</div><div class="slot-meta">${s.class} · ${s.element||""} ${cd}</div></div>
+    </div>`;
+  }).join(""):`<div style="text-align:center;color:#666;padding:40px">No skills</div>`;
+}
+function pickSkill(id){
+  const m=roster.find(x=>x._k===pickCtx.k);
+  const ids=pickCtx.type==="technique"?m.technique_ids:m.charm_ids;
+  ids[pickCtx.s]=id;
+  closeModal();renderRoster();
+}
+
+async function saveRoster(){
+  try{
+    for(const m of roster){
+      const body={name:m.name,class:m.class,damage_type:m.damage_type,rarity:m.rarity,stats:m.stats,technique_ids:(m.technique_ids||[]).filter(Boolean),charm_ids:(m.charm_ids||[]).filter(Boolean),sort_order:roster.indexOf(m)};
+      if(m.id)await fetch(`${SB}/rest/v1/roster_members?id=eq.${m.id}`,{method:"PATCH",headers:H,body:JSON.stringify(body)});
+      else{const r=await fetch(`${SB}/rest/v1/roster_members`,{method:"POST",headers:{...H,Prefer:"return=representation"},body:JSON.stringify(body)});const d=await r.json();if(d[0])m.id=d[0].id}
+    }
+    toast("Roster saved");
+  }catch(e){toast("Save failed: "+e.message)}
+}
+
+// ============================================================
+// Results tab
+// ============================================================
+function renderResults(){
+  const el=document.getElementById("tab-results");
+  const sim=simulate();
+  if(!sim.hp){el.innerHTML=`<div class="panel"><div style="color:#666;text-align:center;padding:30px">Enter boss HP on the Boss tab first.</div></div>`;return}
+  const pct=Math.min(100,sim.total/sim.hp*100);
+  el.innerHTML=`
+  <div class="panel">
+    <div class="panel-title">Boss HP <span>${fmt(sim.total)} / ${fmt(sim.hp)}</span></div>
+    <div class="bar-wrap"><div class="bar" style="width:${pct}%;background:${sim.killed?'var(--ok)':'var(--bad)'}"></div></div>
+    <div class="verdict" style="color:${sim.killed?'var(--ok)':'var(--bad)'}">
+      ${sim.killed?`✦ DEFEATED at ${pct.toFixed(0)}%`:`✦ SHORT by ${fmt(sim.hp-sim.total)} (${pct.toFixed(0)}%)`}</div>
+    ${sim.needed!=null?`<div style="text-align:center;margin-top:10px"><div style="color:#666;font-size:13px">Est. members needed (at current avg)</div><div class="big-num">~${sim.needed}</div><div style="color:#666;font-size:12px">avg ${fmt(sim.avg)} / member over ${boss.rounds} rounds</div></div>`:""}
+  </div>
+  <div class="panel">
+    <div class="panel-title">Per-Member Damage</div>
+    ${sim.results.map((r,i)=>`<div class="res-row"><span>${r.member.name} <span style="color:#666">(${r.member.damage_type}${r.buffPct?` · +${r.buffPct}% buff`:""})</span></span><span style="color:var(--acc)">${fmt(r.total)}</span></div>
+      <details><summary style="color:#666;font-size:12px;cursor:pointer;padding:4px 0">round trace (${r.casts} casts)</summary><div class="trace">${r.trace.join("<br>")}</div></details>`).join("")}
+    <div class="note">Rotation: each round casts every technique that's off cooldown (left→right); a skill goes on cooldown for its CD value in rounds after firing, over ${boss.rounds} rounds. Charms tagged "Buff" add +${BUFF_PER_CHARM}% to the damage-boost zone each (tunable). Damage uses the CN 乘区 model — approximate. Run a real boss fight to calibrate.</div>
+  </div>`;
+}
+
+// ============================================================
+// Tabs + init
+// ============================================================
+function setTab(t){
+  curTab=t;
+  ["boss","roster","results"].forEach(x=>{
+    document.getElementById("tab-"+x).style.display=x===t?"":"none";
+    document.querySelector(`.tab[data-tab="${x}"]`).classList.toggle("active",x===t);
+  });
+  if(t==="boss")renderBoss();
+  if(t==="roster")renderRoster();
+  if(t==="results")renderResults();
+}
+async function init(){
+  try{
+    const rs=await fetch(`${SB}/rest/v1/skills?select=*&limit=500`,{headers:H});
+    ALL_SKILLS=(await rs.json()).filter(s=>s.name);
+    SKILL_MAP=Object.fromEntries(ALL_SKILLS.map(s=>[s.id,s]));
+    // load roster
+    try{
+      const rr=await fetch(`${SB}/rest/v1/roster_members?select=*&order=sort_order`,{headers:H});
+      if(rr.ok){const data=await rr.json();roster=data.map(d=>({...d,_k:"m"+(_k++),technique_ids:d.technique_ids||[],charm_ids:d.charm_ids||[],stats:d.stats||{}}))}
+    }catch(e){}
+    // load most recent boss preset
+    try{
+      const br=await fetch(`${SB}/rest/v1/bosses?select=*&order=updated_at.desc&limit=1`,{headers:H});
+      if(br.ok){const bd=await br.json();if(bd[0]){boss={name:bd[0].name,stats:bd[0].stats||{},rounds:bd[0].rounds||50,id:bd[0].id}}}
+    }catch(e){}
+    if(!roster.length)addMember();
+    document.getElementById("loading").style.display="none";
+    document.getElementById("app").style.display="";
+    document.getElementById("sub").textContent=`${ALL_SKILLS.length} skills · ${roster.length} members`;
+    setTab("boss");
+  }catch(e){
+    document.getElementById("loading").innerHTML=`<div><div style="font-size:38px">⚠️</div><div style="color:#e74c3c">Failed to load: ${e.message}</div></div>`;
+  }
+}
+// add save buttons to roster tab via a floating action
+document.getElementById("modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
+init();
+
+// expose a global save for roster (called from a button we inject)
+window.saveRoster=saveRoster;
