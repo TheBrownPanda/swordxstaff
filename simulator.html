@@ -491,28 +491,35 @@ function setTab(t){
   if(t==="results")renderResults();
 }
 async function init(){
+  // Step 1: skills are required. Show any failure on-screen.
+  let skillsOk=false;
   try{
     const rs=await fetch(`${SB}/rest/v1/skills?select=*&limit=500`,{headers:H});
-    ALL_SKILLS=(await rs.json()).filter(s=>s.name);
+    if(!rs.ok){throw new Error(`skills HTTP ${rs.status}`)}
+    const data=await rs.json();
+    ALL_SKILLS=data.filter(s=>s.name);
     SKILL_MAP=Object.fromEntries(ALL_SKILLS.map(s=>[s.id,s]));
-    // load roster
-    try{
-      const rr=await fetch(`${SB}/rest/v1/roster_members?select=*&order=sort_order`,{headers:H});
-      if(rr.ok){const data=await rr.json();roster=data.map(d=>({...d,_k:"m"+(_k++),technique_ids:d.technique_ids||[],charm_ids:d.charm_ids||[],stats:d.stats||{}}))}
-    }catch(e){}
-    // load most recent boss preset
-    try{
-      const br=await fetch(`${SB}/rest/v1/bosses?select=*&order=updated_at.desc&limit=1`,{headers:H});
-      if(br.ok){const bd=await br.json();if(bd[0]){boss={name:bd[0].name,stats:bd[0].stats||{},rounds:bd[0].rounds||50,id:bd[0].id}}}
-    }catch(e){}
-    if(!roster.length)addMember();
-    document.getElementById("loading").style.display="none";
-    document.getElementById("app").style.display="";
-    document.getElementById("sub").textContent=`${ALL_SKILLS.length} skills · ${roster.length} members`;
-    setTab("boss");
+    skillsOk=true;
   }catch(e){
-    document.getElementById("loading").innerHTML=`<div><div style="font-size:38px">⚠️</div><div style="color:#e74c3c">Failed to load: ${e.message}</div></div>`;
+    document.getElementById("loading").innerHTML=`<div><div style="font-size:38px">⚠️</div><div style="color:#e74c3c;margin-bottom:6px">Couldn't load skills</div><div style="color:#888;font-size:13px">${e.message}</div></div>`;
+    return;
   }
+  // Step 2: optional — roster. Never blocks.
+  try{
+    const rr=await fetch(`${SB}/rest/v1/roster_members?select=*&order=sort_order`,{headers:H});
+    if(rr.ok){const data=await rr.json();roster=data.map(d=>({...d,_k:"m"+(_k++),technique_ids:d.technique_ids||[],charm_ids:d.charm_ids||[],stats:d.stats||{}}))}
+  }catch(e){console.warn("roster load skipped:",e.message)}
+  // Step 3: optional — boss preset. Never blocks.
+  try{
+    const br=await fetch(`${SB}/rest/v1/bosses?select=*&order=updated_at.desc&limit=1`,{headers:H});
+    if(br.ok){const bd=await br.json();if(bd[0]){boss={name:bd[0].name,stats:bd[0].stats||{},rounds:bd[0].rounds||50,id:bd[0].id}}}
+  }catch(e){console.warn("boss load skipped:",e.message)}
+  // Step 4: reveal the app
+  if(!roster.length)addMember();
+  document.getElementById("loading").style.display="none";
+  document.getElementById("app").style.display="";
+  document.getElementById("sub").textContent=`${ALL_SKILLS.length} skills · ${roster.length} members`;
+  setTab("boss");
 }
 // add save buttons to roster tab via a floating action
 document.getElementById("modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
