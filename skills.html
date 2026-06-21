@@ -41,6 +41,17 @@ body{min-height:100vh;min-height:100dvh;background:linear-gradient(160deg,#08081
 .pill-sep{width:1px;background:var(--bdr);margin:4px 4px;align-self:stretch}
 .skill-count{font-size:13px;color:var(--tx3);margin-bottom:12px;font-weight:500}
 
+/* Class path filters */
+.class-paths{background:var(--card);border:1px solid var(--bdr);border-radius:14px;padding:14px;margin-bottom:16px}
+.path-row{margin-bottom:10px}
+.path-row:last-child{margin-bottom:0}
+.path-label{font-size:11px;color:var(--tx3);font-weight:700;letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px}
+.path-pills{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.path-pills::before{display:none}
+.cpill{display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 12px 4px}
+.cpill-name{font-size:13px;line-height:1.2}
+.cpill-tier{font-size:9px;color:var(--tx3);font-weight:500;letter-spacing:.5px}
+
 /* Grid */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
 @media(max-width:400px){.grid{grid-template-columns:1fr}}
@@ -131,6 +142,7 @@ body{min-height:100vh;min-height:100dvh;background:linear-gradient(160deg,#08081
 <script>
 const SB="https://ysxbglavmdngayvinrzk.supabase.co",SK="sb_publishable_w9keP2-21tJKR6FcF0YIQA_6q3ykBk-";
 const IB=`${SB}/storage/v1/object/public/skill-icons`,LW="https://lootandwaifus.com/skills/swordxstaff";
+const TS="https://www.tsueken.com/content/assets/skills";
 const RCOL={Rare:"#5f9aff",Epic:"#9660c4",Legendary:"#e68a23",Mythic:"#ebed63",Divine:"#e05252",Immortal:"#e884e8"};
 const RFLOW=["Rare","Epic","Legendary","Mythic","Divine","Immortal"];
 const PROF_COL={
@@ -142,6 +154,28 @@ const PROF_COL={
   "Burst Magus":"#5522a0","Truth Sage King":"#116633","Radiance Magus":"#4a1a80","Spirit Star Sage":"#0d5028"
 };
 const TIERS=["T1","T2","T3","T4","T5","T6","T7"];
+const CLASS_PATHS=[
+  {name:"Knight Path",icon:"⚔️",classes:[
+    {name:"Warrior",tier:"T1"},{name:"Knight",tier:"T2"},{name:"Paladin",tier:"T3"},
+    {name:"Guardian",tier:"T4"},{name:"Templar",tier:"T5"},
+    {name:"Firmament Paladin",tier:"T6"},{name:"Aurora Paladin",tier:"T7"}
+  ]},
+  {name:"Duelist Path",icon:"⚔️",classes:[
+    {name:"Warrior",tier:"T1"},{name:"Duelist",tier:"T2"},{name:"Berserker",tier:"T3"},
+    {name:"Conqueror",tier:"T4"},{name:"Ravager",tier:"T5"},
+    {name:"Phantom Blade",tier:"T6"},{name:"Meteor Gladiator",tier:"T7"}
+  ]},
+  {name:"Sorcerer Path",icon:"🔮",classes:[
+    {name:"Mage",tier:"T1"},{name:"Sorcerer",tier:"T2"},{name:"Archmage",tier:"T3"},
+    {name:"Destroyer",tier:"T4"},{name:"Magister",tier:"T5"},
+    {name:"Burst Magus",tier:"T6"},{name:"Radiance Magus",tier:"T7"}
+  ]},
+  {name:"Sage Path",icon:"🔮",classes:[
+    {name:"Mage",tier:"T1"},{name:"Sage",tier:"T2"},{name:"Arcanist",tier:"T3"},
+    {name:"Dominator",tier:"T4"},{name:"Prophet",tier:"T5"},
+    {name:"Truth Sage King",tier:"T6"},{name:"Spirit Star Sage",tier:"T7"}
+  ]},
+];
 const FIELD_LABELS={
   SkillAttack1:"Damage",SkillAttack2:"Damage 2",SkillAttack3:"Damage 3",SkillAttack4:"Damage 4",
   SkillCureByHp:"Heal (HP%)",SkillCureByAttack:"Heal (ATK%)",SkillCureByTargetHp:"Heal (Target HP%)",
@@ -171,8 +205,12 @@ const FACTOR_LABELS={
 };
 
 let ALL=[],fTier="all",fType="all",fProf="all",selRarity="Legendary";
-function iu(s){const n=(s.id||"").replace("skill_","");return`${IB}/sprite_skill_${n}.png`}
-function iuf(s){return`${LW}/${s.id}.webp`}
+function iu(s){const n=(s.id||"").replace("skill_","");return`${IB}/skill_${n}.webp`}
+function iuf(s){const n=(s.id||"").replace("skill_","");return`${IB}/sprite_skill_${n}.png`}
+function iuf2(s){return`${LW}/${s.id}.png`}
+function imgTag(s,cls){
+  return`<img class="${cls||''}" src="${iu(s)}" onerror="this.onerror=()=>{this.onerror=null;this.src='${iuf2(s)}'};this.src='${iuf(s)}'" loading="lazy">`
+}
 function profColor(p){return PROF_COL[p]||"#888"}
 function fmt(v){if(v>=1e6)return(v/1e6).toFixed(1)+"M";if(v>=1e3)return(v/1e3).toFixed(1)+"K";return String(Math.round(v))}
 
@@ -224,7 +262,7 @@ function render(){
 
   let h=`<div class="search-bar"><span class="ico">🔍</span><input id="q" placeholder="Search by name, class, or keyword..." oninput="render()" value="${q.replace(/"/g,'&quot;')}" autocomplete="off" autocorrect="off"></div>`;
 
-  // Filters
+  // Type + Tier filters
   h+=`<div class="filter-bar">`;
   h+=`<button class="pill${fType==="all"?" on":""}" onclick="fType='all';render()">All Types</button>`;
   h+=`<button class="pill${fType==="Technique"?" on":""}" style="${fType==="Technique"?"color:var(--tech);border-color:var(--tech)":""}" onclick="fType='Technique';render()">Techniques</button>`;
@@ -233,12 +271,19 @@ function render(){
   TIERS.forEach(t=>{h+=`<button class="pill${fTier===t?" on":""}" onclick="fTier=fTier==='${t}'?'all':'${t}';render()">${t}</button>`});
   h+=`</div>`;
 
-  // Profession filter (collapsible)
-  h+=`<div class="filter-bar">`;
-  h+=`<button class="pill${fProf==="all"?" on":""}" onclick="fProf='all';render()">All Classes</button>`;
-  profs.forEach(p=>{
-    const c=profColor(p);
-    h+=`<button class="pill${fProf===p?" on":""}" style="${fProf===p?`color:${c};border-color:${c}`:""}" onclick="fProf=fProf==='${p}'?'all':'${p}';render()">${p}</button>`;
+  // Class filter — organized by promotion path
+  h+=`<div class="class-paths">`;
+  h+=`<button class="pill${fProf==="all"?" on":""}" onclick="fProf='all';render()" style="margin-bottom:8px">All Classes</button>`;
+  CLASS_PATHS.forEach(path=>{
+    h+=`<div class="path-row"><span class="path-label">${path.icon} ${path.name}</span><div class="path-pills">`;
+    path.classes.forEach(cls=>{
+      const exists=profs.includes(cls.name);
+      if(!exists)return;
+      const c=profColor(cls.name);
+      const on=fProf===cls.name;
+      h+=`<button class="pill cpill${on?" on":""}" style="${on?`color:${c};border-color:${c}`:""}" onclick="fProf=fProf==='${cls.name}'?'all':'${cls.name}';render()"><span class="cpill-name">${cls.name}</span><span class="cpill-tier">${cls.tier}</span></button>`;
+    });
+    h+=`</div></div>`;
   });
   h+=`</div>`;
 
@@ -259,7 +304,7 @@ function render(){
     const isT=s.type==="combat";
     const ms=getMainStat(s,selRarity);
     h+=`<div class="sk" onclick="openDetail('${s.id}')">`;
-    h+=`<div class="sk-icon"><img src="${iu(s)}" onerror="this.onerror=null;this.src='${iuf(s)}'" loading="lazy"></div>`;
+    h+=`<div class="sk-icon">${imgTag(s)}</div>`;
     h+=`<div class="sk-info"><div class="sk-name">${s.name}</div><div class="sk-row">`;
     h+=`<span class="sk-badge" style="background:${pc}18;color:${pc};border-color:${pc}33">${s.profession||s.class||""}</span>`;
     h+=`<span class="sk-badge" style="background:${isT?"var(--tech)":"var(--chrm)"}18;color:${isT?"var(--tech)":"var(--chrm)"};border-color:${isT?"var(--tech)":"var(--chrm)"}33">${isT?"Technique":"Charm"}</span>`;
@@ -370,7 +415,7 @@ function refreshDetail(){
   const pc=profColor(s.profession);
   const isT=s.type==="combat";
   let h=`<div class="detail-head">`;
-  h+=`<div class="detail-icon"><img src="${iu(s)}" onerror="this.onerror=null;this.src='${iuf(s)}'"></div>`;
+  h+=`<div class="detail-icon">${imgTag(s)}</div>`;
   h+=`<div class="detail-hdr"><div class="detail-name">${s.name}</div>`;
   h+=`<div class="detail-sub">${s.cn_name||""} ${s.name_jp&&s.name_jp!==s.cn_name?"• "+s.name_jp:""}</div>`;
   h+=`<div class="detail-tags">`;
