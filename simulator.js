@@ -13,8 +13,7 @@ const LW="https://lootandwaifus.com/skills/swordxstaff";
 const H={apikey:SK,Authorization:`Bearer ${SK}`,"Content-Type":"application/json"};
 const HR={apikey:SK,Authorization:`Bearer ${SK}`}; // read-only: no Content-Type → no CORS preflight
 
-const RIDX={Rare:1,Epic:4,Legendary:8,Mythic:14,Divine:22,Rainbow:33};
-const RARITIES=["Rare","Epic","Legendary","Mythic","Divine","Rainbow"];
+const RARITIES=["Rare","Epic","Legendary","Mythic","Divine","Immortal"];
 const ELEMENTS=["Physical","Wind","Water","Fire","Light","Dark"];
 const ROUNDS=50;
 
@@ -108,62 +107,112 @@ async function runOCR(files,onDone,setStatus){
 
 // ============================================================
 // 乘区 damage model — per single cast of a skill
+// Correct formula: (ATK × pct/100 + flat) × defMit × affinity × critAvg × dmgBoost × pve × dmgRes × blockMod
 // ============================================================
-function skillCast(member,skill,boss,buffPct){
-  const S=member.stats||{}, B=boss.stats||{};
-  const atk=S.ATK||0, def=B.DEF||0;
-  const defMit=(atk+def)>0?atk/(atk+def):0;
-  const critAvg=1+((S["Crit Rate"]||0)/100)*((S["Crit DMG"]||0)/100);
-  const dmgBoost=1+((S["DMG Boost"]||0)/100)+ (buffPct||0)/100;   // damage-boost zone (+ active buffs)
-  const pve=1+((S["PvE Bonus DMG"]||0)/100);
-  const dmgRes=1-((B["DMG RES"]||0)/100);
-  // elemental affinity vs aegis (or physical mastery vs res)
-  let aff=1;
-  if(member.damage_type!=="Physical"){
-    const a=S[`${member.damage_type} Affinity`]||0, g=B[`${member.damage_type} Aegis`]||0;
-    aff=(a+g)>0?a/(a+g):1;
-  }else{
-    const ms=S["Physical Mastery"]||0, rs=B["Physical RES"]||0;
-    aff=(ms+rs)>0?ms/(ms+rs):1;
+function getSkillDmg(skill, rarity) {
+  // Try stats_by_rarity first (new data with pct + flat)
+  const sbr = skill.stats_by_rarity;
+  if (sbr && sbr[rarity]) {
+    const st = sbr[rarity];
+    for (const k of ['SkillAttack1','SkillAttack2','SkillAttack3','SkillAttack4']) {
+      if (st[k] && typeof st[k] === 'object') return { pct: st[k].pct || 0, flat: st[k].flat || 0 };
+    }
   }
-  const blockRate=(B["Block Rate"]||0)/100, blockEff=(B["Block Efficiency"]||0)/100;
-  const blockMod=1-blockRate*blockEff;
-  // skill multiplier from the damage array at member's rarity index
-  let mult=1;
-  if(skill.damage&&skill.damage.length){const v=skill.damage[RIDX[member.rarity||"Legendary"]];if(v!=null)mult=v/100}
-  return Math.max(0, atk*mult*defMit*aff*critAvg*dmgBoost*pve*dmgRes*blockMod);
+  // Fallback to old damage array
+  const RIDX={Rare:1,Epic:4,Legendary:8,Mythic:14,Divine:22,Immortal:33};
+  if (skill.damage && skill.damage.length) {
+    const v = skill.damage[RIDX[rarity]];
+    if (v != null) return { pct: v, flat: 0 };
+  }
+  return { pct: 0, flat: 0 };
+}
+
+function getCharmBuff(skill, rarity) {
+  // Try extra_entity_stats (active buffs like Valor Surge)
+  if (skill.extra_entity_stats) {
+    for (const ex of skill.extra_entity_stats) {
+      const est = ex.stats && ex.stats[rarity];
+      if (!est) continue;
+      for (const [k, v] of Object.entries(est)) {
+        if (k === 'StatusDmgAddPer' && typeof v === 'object') return v.pct || 0;
+        if (k === 'StatusDmgAddPer' && typeof v === 'number') return v;
+      }
+    }
+  }
+  // Try passive_status_stats
+  if (skill.passive_status_stats) {
+    for (const ps of skill.passive_status_stats) {
+      const pst = ps.stats && ps.stats[rarity];
+      if (!pst) continue;
+      for (const [k, v] of Object.entries(pst)) {
+        if (k === 'StatusDmgAddPer' && typeof v === 'object') return v.pct || 0;
+        if (k === 'StatusDmgAddPer' && typeof v === 'number') return v;
+      }
+    }
+  }
+  // Try passive_factor_stats
+  if (skill.passive_factor_stats && skill.passive_factor_stats[rarity]) {
+    const pfs = skill.passive_factor_stats[rarity];
+    if (pfs.DmgAddPercent) return pfs.DmgAddPercent.pct || pfs.DmgAddPercent.value || 0;
+  }
+  // Fallback: Buff-tagged charm = flat estimate
+  if ((skill.tags || []).includes('Buff')) return 8;
+  return 0;
+}
+
+function skillCast(member, skill, boss, totalBuffPct) {
+  const S = member.stats || {}, B = boss.stats || {};
+  const atk = S.ATK || 0, def = B.DEF || 0;
+  const defMit = (atk + def) > 0 ? atk / (atk + def) : 0;
+  const critAvg = 1 + ((S["Crit Rate"] || 0) / 100) * ((S["Crit DMG"] || 0) / 100);
+  const dmgBoost = 1 + ((S["DMG Boost"] || 0) / 100) + (totalBuffPct || 0) / 100;
+  const pve = 1 + ((S["PvE Bonus DMG"] || 0) / 100);
+  const dmgRes = 1 - ((B["DMG RES"] || 0) / 100);
+  // elemental affinity vs aegis
+  let aff = 1;
+  if (member.damage_type !== "Physical") {
+    const a = S[`${member.damage_type} Affinity`] || 0, g = B[`${member.damage_type} Aegis`] || 0;
+    aff = (a + g) > 0 ? a / (a + g) : 1;
+  } else {
+    const ms = S["Physical Mastery"] || 0, rs = B["Physical RES"] || 0;
+    aff = (ms + rs) > 0 ? ms / (ms + rs) : 1;
+  }
+  const blockRate = (B["Block Rate"] || 0) / 100, blockEff = (B["Block Efficiency"] || 0) / 100;
+  const blockMod = 1 - blockRate * blockEff;
+  // skill multiplier: pct% of ATK + flat
+  const { pct, flat } = getSkillDmg(skill, member.rarity || "Legendary");
+  const baseDmg = atk * (pct / 100) + flat;
+  return Math.max(0, baseDmg * defMit * aff * critAvg * dmgBoost * pve * dmgRes * blockMod);
 }
 
 // ============================================================
 // 50-round rotation simulator
-// Each round: scan technique slots L→R, cast FIRST off-cooldown skill.
-// Charms = passive buff sources (their tag "Buff" contributes a flat zone bump).
+// Each round: cast every off-cooldown technique (left→right).
+// Charms contribute their actual DMG boost value from the data.
 // ============================================================
-const BUFF_PER_CHARM=8; // tunable: each Buff-tagged charm adds this % to dmg-boost zone
-
-function simulateMember(member,boss){
-  const skills=(member.technique_ids||[]).map(id=>SKILL_MAP[id]).filter(Boolean);
-  if(!skills.length)return{total:0,trace:[],casts:0};
-  const cdReady=skills.map(()=>0); // round index when each slot becomes available
-  // passive buff from charms tagged "Buff"
-  const charms=(member.charm_ids||[]).map(id=>SKILL_MAP[id]).filter(Boolean);
-  const buffPct=charms.filter(c=>(c.tags||[]).includes("Buff")).length*BUFF_PER_CHARM;
-  let total=0,casts=0;const trace=[];
-  for(let r=0;r<boss.rounds;r++){
-    const fired=[];let roundDmg=0;
-    // cast EVERY off-cooldown technique this round, left→right
-    for(let s=0;s<skills.length;s++){
-      if(cdReady[s]<=r){
-        const sk=skills[s];
-        const dmg=skillCast(member,sk,boss,buffPct);
-        total+=dmg;roundDmg+=dmg;casts++;
-        cdReady[s]=r+1+(sk.cooldown||0); // unavailable for `cd` rounds after this one
-        fired.push(`s${s+1} ${sk.name} ${fmt(dmg)}`);
+function simulateMember(member, boss) {
+  const skills = (member.technique_ids || []).map(id => SKILL_MAP[id]).filter(Boolean);
+  if (!skills.length) return { total: 0, trace: [], casts: 0 };
+  const cdReady = skills.map(() => 0);
+  // Charm buff: sum actual DMG boost values from charm data
+  const charms = (member.charm_ids || []).map(id => SKILL_MAP[id]).filter(Boolean);
+  const rarity = member.rarity || "Legendary";
+  const buffPct = charms.reduce((sum, c) => sum + getCharmBuff(c, rarity), 0);
+  let total = 0, casts = 0; const trace = [];
+  for (let r = 0; r < boss.rounds; r++) {
+    const fired = []; let roundDmg = 0;
+    for (let s = 0; s < skills.length; s++) {
+      if (cdReady[s] <= r) {
+        const sk = skills[s];
+        const dmg = skillCast(member, sk, boss, buffPct);
+        total += dmg; roundDmg += dmg; casts++;
+        cdReady[s] = r + 1 + (sk.cooldown || 0);
+        fired.push(`s${s + 1} ${sk.name} ${fmt(dmg)}`);
       }
     }
-    trace.push(`R${r+1}: ${fired.length?fired.join(" · ")+` = ${fmt(roundDmg)}`:"(all on CD)"}`);
+    trace.push(`R${r + 1}: ${fired.length ? fired.join(" · ") + ` = ${fmt(roundDmg)}` : "(all on CD)"}`);
   }
-  return{total,trace,casts,buffPct};
+  return { total, trace, casts, buffPct };
 }
 
 function simulate(){
@@ -271,7 +320,8 @@ function slotHtml(m,type,s){
   const sk=SKILL_MAP[ids[s]];
   if(!sk)return`<div class="slot empty" onclick="openPicker('${m._k}','${type}',${s})"><span class="slot-num">${s+1}</span> + Add ${type}</div>`;
   const cd=sk.cooldown!=null?`CD ${sk.cooldown}`:"";
-  const dmg=sk.damage&&sk.damage.length&&sk.damage[RIDX[m.rarity]]!=null?` · ${sk.damage[RIDX[m.rarity]]}%`:"";
+  const d=getSkillDmg(sk,m.rarity||"Legendary");
+  const dmg=d.pct?` · ${d.pct}%+${d.flat>=1e3?(d.flat/1e3).toFixed(1)+'K':d.flat}`:"";
   return`<div class="slot" onclick="openPicker('${m._k}','${type}',${s})">
     <span class="slot-num">${s+1}</span>
     <div class="slot-icon"><img src="${iconUrl(sk)}" onerror="this.onerror=null;this.src='${iconFallback(sk)}'"></div>
@@ -279,8 +329,8 @@ function slotHtml(m,type,s){
     <button class="slot-rm" onclick="event.stopPropagation();clearSlot('${m._k}','${type}',${s})">×</button>
   </div>`;
 }
-function iconUrl(s){const n=String(s.id).replace("skill_","");return`${IB}/sprite_skill_${n}.png`}
-function iconFallback(s){const n=String(s.id).replace("skill_","");return`${LW}/skill_${n}.webp`}
+function iconUrl(s){const n=String(s.id).replace("skill_","");return`${IB}/skill_${n}.webp`}
+function iconFallback(s){const n=String(s.id).replace("skill_","");return`${IB}/sprite_skill_${n}.png`}
 
 let _k=1;
 function addMember(){roster.push({_k:"m"+(_k++),id:null,name:`Member ${roster.length+1}`,class:"",damage_type:"Physical",rarity:"Legendary",stats:{},technique_ids:[],charm_ids:[]});renderRoster()}
@@ -311,14 +361,17 @@ function renderPicker(){
   if(!pickCtx)return;
   const q=document.getElementById("modal-search").value.toLowerCase();
   const skType=pickCtx.type==="technique"?"Technique":"Charm";
-  let list=ALL_SKILLS.filter(s=>s.type===skType&&s.name);
+  let list=ALL_SKILLS.filter(s=>{
+    const t=s.type==="combat"?"Technique":s.type==="arcane"?"Charm":s.type;
+    return t===skType&&s.name;
+  });
   if(q)list=list.filter(s=>s.name.toLowerCase().includes(q)||(s.description||"").toLowerCase().includes(q));
   list=list.slice(0,200);
   document.getElementById("modal-body").innerHTML=list.length?list.map(s=>{
     const cd=s.cooldown!=null?`CD ${s.cooldown}`:"";
     return`<div class="pick-card" onclick="pickSkill('${s.id}')">
       <div class="slot-icon"><img src="${iconUrl(s)}" onerror="this.onerror=null;this.src='${iconFallback(s)}'"></div>
-      <div class="slot-info"><div class="slot-name">${s.name}</div><div class="slot-meta">${s.class} · ${s.element||""} ${cd}</div></div>
+      <div class="slot-info"><div class="slot-name">${s.name}</div><div class="slot-meta">${s.profession||s.class||""} · ${s.element||""} ${cd}</div></div>
     </div>`;
   }).join(""):`<div style="text-align:center;color:#666;padding:40px">No skills</div>`;
 }
@@ -360,7 +413,7 @@ function renderResults(){
     <div class="panel-title">Per-Member Damage</div>
     ${sim.results.map((r,i)=>`<div class="res-row"><span>${r.member.name} <span style="color:#666">(${r.member.damage_type}${r.buffPct?` · +${r.buffPct}% buff`:""})</span></span><span style="color:var(--acc)">${fmt(r.total)}</span></div>
       <details><summary style="color:#666;font-size:12px;cursor:pointer;padding:4px 0">round trace (${r.casts} casts)</summary><div class="trace">${r.trace.join("<br>")}</div></details>`).join("")}
-    <div class="note">Rotation: each round casts every technique that's off cooldown (left→right); a skill goes on cooldown for its CD value in rounds after firing, over ${boss.rounds} rounds. Charms tagged "Buff" add +${BUFF_PER_CHARM}% to the damage-boost zone each (tunable). Damage uses the CN 乘区 model — approximate. Run a real boss fight to calibrate.</div>
+    <div class="note">Rotation: each round casts every technique that's off cooldown (left→right); a skill goes on cooldown for its CD value in rounds after firing, over ${boss.rounds} rounds. Charm DMG buffs use actual computed values from skill data. Damage uses the 乘区 model: (ATK × pct% + flat) × DEF mitigation × affinity × crit × DMG boost × PvE × resistance × block.</div>
   </div>`;
 }
 
