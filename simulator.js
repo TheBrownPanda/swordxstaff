@@ -14,8 +14,57 @@ const H={apikey:SK,Authorization:`Bearer ${SK}`,"Content-Type":"application/json
 const HR={apikey:SK,Authorization:`Bearer ${SK}`}; // read-only: no Content-Type → no CORS preflight
 
 const RARITIES=["Rare","Epic","Legendary","Mythic","Divine","Immortal"];
+const RCODE={Rare:'R',Epic:'SR',Legendary:'SSR',Mythic:'UR',Divine:'LR',Immortal:'ER'};
 const ELEMENTS=["Physical","Wind","Water","Fire","Light","Dark"];
 const ROUNDS=50;
+const FPAIR={SkillAttack1:'SkillFixedAttack1',SkillAttack2:'SkillFixedAttack2',SkillAttack3:'SkillFixedAttack3',SkillAttack4:'SkillFixedAttack4',SkillCureByHp:'SkillFixedCure',SkillCureByAttack:'SkillFixedCure',ShieldByDefence:'SkillFixedShield',ShieldByTargetHp:'SkillFixedShield',ShieldByConvertedCurHp:'SkillFixedShield',StatusDmgAddPer:'FixedStatusDmgAdd',AttackScale:'FixedAttack',DefenceScale:'FixedDefence',MaxHpScale:'FixedMaxHp',SpeedScale:'FixedSpeed'};
+
+let CURVES=null;
+async function loadCurves(){
+  if(CURVES)return;
+  try{const r=await fetch('curves.json');CURVES=await r.json();console.log('Curves loaded');}catch(e){console.warn('curves.json not found')}
+}
+
+// Compute skill damage at specific rarity/star/level using curves
+function getSkillDmgAtLevel(skill, rarity, star, level) {
+  // Try dynamic computation with curves
+  if (CURVES && skill.entity_values) {
+    const ev = skill.entity_values;
+    const rc = RCODE[rarity] || 'SSR';
+    const rankNo = parseInt(CURVES.rank_table[rc]?.[String(star)] || CURVES.rank_table[rc]?.['0'] || 6);
+    const cs = skill.curve_source || 'skill';
+    const bucket = cs === 'status' ? 'status_curves' : 'rank_curves';
+    const rr = CURVES[bucket]?.[String(skill.rank_prop_id)]?.[String(rankNo)] || {};
+    // Level curve
+    const subrank = CURVES.rarity_meta[rc]?.subrank || '';
+    const cid = CURVES.group_level_map?.[String(skill.group_level_prop_id)]?.[subrank];
+    let lr = {};
+    if (cid) {
+      for (const bk of ['fixed_curves', 'all_fixed_curves']) {
+        const b = CURVES[bk]?.[String(cid)];
+        if (!b) continue;
+        const lvs = Object.keys(b).map(Number).sort((a, b) => a - b);
+        let sel = lvs[0] || 0;
+        for (const l of lvs) if (l <= level) sel = l;
+        lr = b[String(sel)] || {};
+        break;
+      }
+    }
+    // Find first damage field
+    for (const f of ['SkillAttack1','SkillAttack2','SkillAttack3','SkillAttack4']) {
+      const paired = FPAIR[f];
+      if (ev[f] != null) {
+        const pb = Number(ev[f]), ps = Number(rr[f] || 0);
+        const pct = pb && ps ? (pb * ps) / 1e6 : 0;
+        const fb = Number(ev[paired] || 0), fr = Number(rr[paired] || 0), fl = Number(lr[paired] || 0);
+        const flat = fl && fb && fr ? (fl * fb * fr) / 1e8 : 0;
+        if (pct || flat) return { pct: Math.round(pct * 10) / 10, flat: Math.round(flat) };
+      }
+    }
+  }
+  // Fallback to precomputed stats_by_rarity (star 0, level 1)
+  return getSkillDmg(skill, rarity);
+}
 
 // stat keys recognized by OCR / shown in editor
 const STAT_KEYS=["ATK","DEF","HP","SPD","Resilience","Crit Rate","Crit DMG","Crit RES","Block Rate","Block Efficiency","Accuracy","DMG Boost","DMG RES","Healing Boost","PvP Bonus DMG","PvP DMG RES","PvE Bonus DMG","PvE DMG RES","Effect Hit Rate","Effect RES","Elemental Mastery","Elemental RES","Physical Mastery","Physical RES","Wind Affinity","Water Affinity","Fire Affinity","Light Affinity","Dark Affinity","Wind Aegis","Water Aegis","Fire Aegis","Light Aegis","Dark Aegis"];
@@ -160,7 +209,7 @@ function getCharmBuff(skill, rarity) {
   return 0;
 }
 
-function skillCast(member, skill, boss, totalBuffPct) {
+function skillCast(member, skill, slotConfig, boss, totalBuffPct) {
   const S = member.stats || {}, B = boss.stats || {};
   const atk = S.ATK || 0, def = B.DEF || 0;
   const defMit = (atk + def) > 0 ? atk / (atk + def) : 0;
@@ -168,10 +217,11 @@ function skillCast(member, skill, boss, totalBuffPct) {
   const dmgBoost = 1 + ((S["DMG Boost"] || 0) / 100) + (totalBuffPct || 0) / 100;
   const pve = 1 + ((S["PvE Bonus DMG"] || 0) / 100);
   const dmgRes = 1 - ((B["DMG RES"] || 0) / 100);
-  // elemental affinity vs aegis
+  // elemental affinity — use element from skill data
   let aff = 1;
-  if (member.damage_type !== "Physical") {
-    const a = S[`${member.damage_type} Affinity`] || 0, g = B[`${member.damage_type} Aegis`] || 0;
+  const dmgType = skill.element || "Physical";
+  if (dmgType !== "Physical") {
+    const a = S[`${dmgType} Affinity`] || 0, g = B[`${dmgType} Aegis`] || 0;
     aff = (a + g) > 0 ? a / (a + g) : 1;
   } else {
     const ms = S["Physical Mastery"] || 0, rs = B["Physical RES"] || 0;
@@ -179,8 +229,11 @@ function skillCast(member, skill, boss, totalBuffPct) {
   }
   const blockRate = (B["Block Rate"] || 0) / 100, blockEff = (B["Block Efficiency"] || 0) / 100;
   const blockMod = 1 - blockRate * blockEff;
-  // skill multiplier: pct% of ATK + flat
-  const { pct, flat } = getSkillDmg(skill, member.rarity || "Legendary");
+  // skill multiplier at this slot's rarity/star + member level
+  const rarity = slotConfig.rarity || "Legendary";
+  const star = slotConfig.star || 0;
+  const level = member.level || 1;
+  const { pct, flat } = getSkillDmgAtLevel(skill, rarity, star, level);
   const baseDmg = atk * (pct / 100) + flat;
   return Math.max(0, baseDmg * defMit * aff * critAvg * dmgBoost * pve * dmgRes * blockMod);
 }
@@ -191,20 +244,23 @@ function skillCast(member, skill, boss, totalBuffPct) {
 // Charms contribute their actual DMG boost value from the data.
 // ============================================================
 function simulateMember(member, boss) {
-  const skills = (member.technique_ids || []).map(id => SKILL_MAP[id]).filter(Boolean);
+  const techSlots = (member.technique_slots || []).filter(s => s && s.id && SKILL_MAP[s.id]);
+  const skills = techSlots.map(s => SKILL_MAP[s.id]);
   if (!skills.length) return { total: 0, trace: [], casts: 0 };
   const cdReady = skills.map(() => 0);
   // Charm buff: sum actual DMG boost values from charm data
-  const charms = (member.charm_ids || []).map(id => SKILL_MAP[id]).filter(Boolean);
-  const rarity = member.rarity || "Legendary";
-  const buffPct = charms.reduce((sum, c) => sum + getCharmBuff(c, rarity), 0);
+  const charmSlots = (member.charm_slots || []).filter(s => s && s.id && SKILL_MAP[s.id]);
+  const buffPct = charmSlots.reduce((sum, s) => {
+    const sk = SKILL_MAP[s.id];
+    return sum + getCharmBuff(sk, s.rarity || "Legendary");
+  }, 0);
   let total = 0, casts = 0; const trace = [];
   for (let r = 0; r < boss.rounds; r++) {
     const fired = []; let roundDmg = 0;
     for (let s = 0; s < skills.length; s++) {
       if (cdReady[s] <= r) {
         const sk = skills[s];
-        const dmg = skillCast(member, sk, boss, buffPct);
+        const dmg = skillCast(member, sk, techSlots[s], boss, buffPct);
         total += dmg; roundDmg += dmg; casts++;
         cdReady[s] = r + 1 + (sk.cooldown || 0);
         fired.push(`s${s + 1} ${sk.name} ${fmt(dmg)}`);
@@ -301,8 +357,7 @@ function memberCard(m,i){
       <button class="btn danger sm" onclick="removeMember('${m._k}')">Remove</button>
     </div>
     <div class="grid2" style="margin-bottom:10px">
-      <div class="field"><label>Damage Type</label><select onchange="setMember('${m._k}','damage_type',this.value)">${ELEMENTS.map(e=>`<option ${m.damage_type===e?"selected":""}>${e}</option>`).join("")}</select></div>
-      <div class="field"><label>Skill Rarity</label><select onchange="setMember('${m._k}','rarity',this.value)">${RARITIES.map(rr=>`<option ${m.rarity===rr?"selected":""}>${rr}</option>`).join("")}</select></div>
+      <div class="field"><label>Skill Level</label><input type="number" min="1" max="400" value="${m.level||1}" onchange="setMember('${m._k}','level',parseInt(this.value)||1);renderRoster()"></div>
     </div>
     <div style="font-size:12px;color:var(--tx3);font-weight:700;letter-spacing:1px;margin:6px 0">TECHNIQUES (cast left→right)</div>
     <div class="skill-slots">${techSlots}</div>
@@ -316,16 +371,31 @@ function memberCard(m,i){
   </div>`;
 }
 function slotHtml(m,type,s){
-  const ids=type==="technique"?m.technique_ids:m.charm_ids;
-  const sk=SKILL_MAP[ids[s]];
+  const slots=type==="technique"?(m.technique_slots||(m.technique_slots=[null,null,null,null])):(m.charm_slots||(m.charm_slots=[null,null,null,null]));
+  const slot=slots[s];
+  const sk=slot&&slot.id?SKILL_MAP[slot.id]:null;
   if(!sk)return`<div class="slot empty" onclick="openPicker('${m._k}','${type}',${s})"><span class="slot-num">${s+1}</span> + Add ${type}</div>`;
   const cd=sk.cooldown!=null?`CD ${sk.cooldown}`:"";
-  const d=getSkillDmg(sk,m.rarity||"Legendary");
-  const dmg=d.pct?` · ${d.pct}%+${d.flat>=1e3?(d.flat/1e3).toFixed(1)+'K':d.flat}`:"";
-  return`<div class="slot" onclick="openPicker('${m._k}','${type}',${s})">
-    <span class="slot-num">${s+1}</span>
-    <div class="slot-icon"><img src="${iconUrl(sk)}" onerror="this.onerror=null;this.src='${iconFallback(sk)}'"></div>
-    <div class="slot-info"><div class="slot-name">${sk.name}</div><div class="slot-meta">${sk.element||""} ${cd}${dmg}</div></div>
+  const rarity=slot.rarity||sk.initial_rarity||"Legendary";
+  const star=slot.star||0;
+  const d=getSkillDmgAtLevel(sk,rarity,star,m.level||1);
+  const dmg=d.pct?` · ${d.pct}%+${d.flat>=1e3?(d.flat/1e3).toFixed(1)+'K':Math.round(d.flat)}`:"";
+  const maxStar=CURVES&&CURVES.rarity_meta?parseInt(CURVES.rarity_meta[RCODE[rarity]]?.max_star||3):3;
+  return`<div class="slot">
+    <span class="slot-num" onclick="openPicker('${m._k}','${type}',${s})" style="cursor:pointer">${s+1}</span>
+    <div class="slot-icon" onclick="openPicker('${m._k}','${type}',${s})" style="cursor:pointer"><img src="${iconUrl(sk)}" onerror="this.onerror=null;this.src='${iconFallback(sk)}'"></div>
+    <div class="slot-info" onclick="openPicker('${m._k}','${type}',${s})" style="cursor:pointer">
+      <div class="slot-name">${sk.name}</div>
+      <div class="slot-meta">${sk.element||""} ${cd}${dmg}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0">
+      <select style="background:var(--card2);border:1px solid var(--bdr);color:var(--tx);padding:2px 4px;border-radius:4px;font-size:11px;font-family:inherit" onchange="setSlotProp('${m._k}','${type}',${s},'rarity',this.value)">
+        ${RARITIES.map(r=>`<option ${rarity===r?"selected":""}>${r}</option>`).join("")}
+      </select>
+      <select style="background:var(--card2);border:1px solid var(--bdr);color:var(--tx);padding:2px 4px;border-radius:4px;font-size:11px;font-family:inherit" onchange="setSlotProp('${m._k}','${type}',${s},'star',parseInt(this.value))">
+        ${Array.from({length:maxStar+1},(_,i)=>`<option value="${i}" ${star===i?"selected":""}>${i}★</option>`).join("")}
+      </select>
+    </div>
     <button class="slot-rm" onclick="event.stopPropagation();clearSlot('${m._k}','${type}',${s})">×</button>
   </div>`;
 }
@@ -333,10 +403,16 @@ function iconUrl(s){const n=String(s.id).replace("skill_","");return`${IB}/skill
 function iconFallback(s){const n=String(s.id).replace("skill_","");return`${IB}/sprite_skill_${n}.png`}
 
 let _k=1;
-function addMember(){roster.push({_k:"m"+(_k++),id:null,name:`Member ${roster.length+1}`,class:"",damage_type:"Physical",rarity:"Legendary",stats:{},technique_ids:[],charm_ids:[]});renderRoster()}
+function addMember(){roster.push({_k:"m"+(_k++),id:null,name:`Member ${roster.length+1}`,level:1,stats:{},technique_slots:[null,null,null,null],charm_slots:[null,null,null,null]});renderRoster()}
 function removeMember(k){const m=roster.find(x=>x._k===k);if(m&&m.id)fetch(`${SB}/rest/v1/roster_members?id=eq.${m.id}`,{method:"DELETE",headers:H});roster=roster.filter(x=>x._k!==k);renderRoster()}
 function setMember(k,field,val){const m=roster.find(x=>x._k===k);if(m)m[field]=val}
-function clearSlot(k,type,s){const m=roster.find(x=>x._k===k);const ids=type==="technique"?m.technique_ids:m.charm_ids;ids[s]=null;renderRoster()}
+function setSlotProp(k,type,s,prop,val){
+  const m=roster.find(x=>x._k===k);if(!m)return;
+  const slots=type==="technique"?m.technique_slots:m.charm_slots;
+  if(slots[s])slots[s][prop]=val;
+  renderRoster();
+}
+function clearSlot(k,type,s){const m=roster.find(x=>x._k===k);const slots=type==="technique"?m.technique_slots:m.charm_slots;slots[s]=null;renderRoster()}
 async function onMemberOCR(k,files){
   if(!files.length)return;const m=roster.find(x=>x._k===k);
   await runOCR([...files],(merged,raw)=>{
@@ -377,15 +453,16 @@ function renderPicker(){
 }
 function pickSkill(id){
   const m=roster.find(x=>x._k===pickCtx.k);
-  const ids=pickCtx.type==="technique"?m.technique_ids:m.charm_ids;
-  ids[pickCtx.s]=id;
+  const slots=pickCtx.type==="technique"?m.technique_slots:m.charm_slots;
+  const sk=SKILL_MAP[id];
+  slots[pickCtx.s]={id,rarity:sk?.initial_rarity||"Legendary",star:0};
   closeModal();renderRoster();
 }
 
 async function saveRoster(){
   try{
     for(const m of roster){
-      const body={name:m.name,class:m.class,damage_type:m.damage_type,rarity:m.rarity,stats:m.stats,technique_ids:(m.technique_ids||[]).filter(Boolean),charm_ids:(m.charm_ids||[]).filter(Boolean),sort_order:roster.indexOf(m)};
+      const body={name:m.name,class:m.class,level:m.level||1,stats:m.stats,technique_slots:(m.technique_slots||[]),charm_slots:(m.charm_slots||[]),sort_order:roster.indexOf(m)};
       if(m.id)await fetch(`${SB}/rest/v1/roster_members?id=eq.${m.id}`,{method:"PATCH",headers:H,body:JSON.stringify(body)});
       else{const r=await fetch(`${SB}/rest/v1/roster_members`,{method:"POST",headers:{...H,Prefer:"return=representation"},body:JSON.stringify(body)});const d=await r.json();if(d[0])m.id=d[0].id}
     }
@@ -411,7 +488,7 @@ function renderResults(){
   </div>
   <div class="panel">
     <div class="panel-title">Per-Member Damage</div>
-    ${sim.results.map((r,i)=>`<div class="res-row"><span>${r.member.name} <span style="color:#666">(${r.member.damage_type}${r.buffPct?` · +${r.buffPct}% buff`:""})</span></span><span style="color:var(--acc)">${fmt(r.total)}</span></div>
+    ${sim.results.map((r,i)=>`<div class="res-row"><span>${r.member.name} <span style="color:#666">(Lv${r.member.level||1}${r.buffPct?` · +${r.buffPct.toFixed(1)}% buff`:""})</span></span><span style="color:var(--acc)">${fmt(r.total)}</span></div>
       <details><summary style="color:#666;font-size:12px;cursor:pointer;padding:4px 0">round trace (${r.casts} casts)</summary><div class="trace">${r.trace.join("<br>")}</div></details>`).join("")}
     <div class="note">Rotation: each round casts every technique that's off cooldown (left→right); a skill goes on cooldown for its CD value in rounds after firing, over ${boss.rounds} rounds. Charm DMG buffs use actual computed values from skill data. Damage uses the 乘区 model: (ATK × pct% + flat) × DEF mitigation × affinity × crit × DMG boost × PvE × resistance × block.</div>
   </div>`;
@@ -450,10 +527,19 @@ async function init(){
     document.getElementById("loading").innerHTML=`<div><div style="font-size:38px">⚠️</div><div style="color:#e74c3c;margin-bottom:6px">Couldn't load skills</div><div style="color:#888;font-size:13px;max-width:320px;margin:0 auto">${msg}</div></div>`;
     return;
   }
-  // Step 2: optional — roster. Never blocks.
+  // Step 2: load curves for dynamic computation
+  loadCurves();
+  // Step 3: optional — roster. Never blocks.
   try{
     const rr=await fetch(`${SB}/rest/v1/roster_members?select=*&order=sort_order`,{headers:HR});
-    if(rr.ok){const data=await rr.json();roster=data.map(d=>({...d,_k:"m"+(_k++),technique_ids:d.technique_ids||[],charm_ids:d.charm_ids||[],stats:d.stats||{}}))}
+    if(rr.ok){const data=await rr.json();roster=data.map(d=>{
+      // Migrate old format (technique_ids) to new format (technique_slots)
+      const techSlots=(d.technique_slots||[]).length?d.technique_slots:(d.technique_ids||[]).map(id=>id?{id,rarity:d.rarity||"Legendary",star:0}:null);
+      const charmSlots=(d.charm_slots||[]).length?d.charm_slots:(d.charm_ids||[]).map(id=>id?{id,rarity:d.rarity||"Legendary",star:0}:null);
+      while(techSlots.length<4)techSlots.push(null);
+      while(charmSlots.length<4)charmSlots.push(null);
+      return{...d,_k:"m"+(_k++),level:d.level||1,stats:d.stats||{},technique_slots:techSlots,charm_slots:charmSlots};
+    })}
   }catch(e){console.warn("roster load skipped:",e.message)}
   // Step 3: optional — boss preset. Never blocks.
   try{
