@@ -546,12 +546,42 @@ async function init(){
     const br=await fetch(`${SB}/rest/v1/bosses?select=*&order=updated_at.desc&limit=1`,{headers:HR});
     if(br.ok){const bd=await br.json();if(bd[0]){boss={name:bd[0].name,stats:bd[0].stats||{},rounds:bd[0].rounds||50,id:bd[0].id}}}
   }catch(e){console.warn("boss load skipped:",e.message)}
-  // Step 4: reveal the app
+  // Step 4: check for build import from calculator
+  const importParam = new URLSearchParams(window.location.search).get('import');
+  if (importParam) {
+    try {
+      const build = JSON.parse(atob(importParam));
+      const name = build.c ? `${build.c} Build` : 'Imported Build';
+      const techSlots = (build.t || []).map(s => s ? { id: s.i, rarity: s.r || 'Legendary', star: s.s || 0 } : null);
+      const charmSlots = (build.ch || []).map(s => s ? { id: s.i, rarity: s.r || 'Legendary', star: s.s || 0 } : null);
+      while (techSlots.length < 4) techSlots.push(null);
+      while (charmSlots.length < 4) charmSlots.push(null);
+      // Check if this build is already in roster (by matching all technique ids)
+      const importIds = techSlots.filter(Boolean).map(s => s.id).sort().join(',');
+      const isDupe = roster.some(m => {
+        const mIds = (m.technique_slots || []).filter(Boolean).map(s => s.id).sort().join(',');
+        return mIds === importIds && importIds.length > 0;
+      });
+      if (!isDupe) {
+        roster.unshift({
+          _k: 'm' + (_k++), id: null, name: name,
+          class: build.c || '', level: build.l || 1, stats: {},
+          technique_slots: techSlots, charm_slots: charmSlots
+        });
+        toast('Build imported from calculator');
+      } else {
+        toast('Build already in roster');
+      }
+      // Clean URL without reloading
+      window.history.replaceState({}, '', 'simulator.html');
+    } catch (e) { console.warn('Import parse failed:', e); }
+  }
+  // Step 5: reveal the app
   if(!roster.length)addMember();
   document.getElementById("loading").style.display="none";
   document.getElementById("app").style.display="";
   document.getElementById("sub").textContent=`${ALL_SKILLS.length} skills · ${roster.length} members`;
-  setTab("boss");
+  setTab(importParam ? "roster" : "boss");
 }
 // add save buttons to roster tab via a floating action
 document.getElementById("modal").addEventListener("click",e=>{if(e.target.id==="modal")closeModal()});
