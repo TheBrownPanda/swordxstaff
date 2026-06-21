@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Skill Database — Sword × Staff</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080810;--card:#0e0e1c;--card2:#12122a;--bdr:rgba(255,255,255,.06);--bdr2:rgba(255,255,255,.12);
+  --tx:#e8e6e3;--tx2:#aaa;--tx3:#666;--acc:#ffd54f;--acc2:#ff8a65;
+  --tech:#5b8dd9;--chrm:#c084fc;
+  --rare:#5f9aff;--epic:#9660c4;--lege:#e68a23;--myth:#ebed63;--divine:#e05252;--immort:#e884e8;
+}
+html{background:var(--bg);color:var(--tx);font-family:'Outfit',system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+body{min-height:100vh;min-height:100dvh;background:linear-gradient(160deg,#080810,#0e0e1c 40%,#0c1428)}
+
+/* Nav */
+.top-bar{padding:14px 20px;border-bottom:1px solid var(--bdr);background:rgba(0,0,0,.5);backdrop-filter:blur(14px);position:sticky;top:0;z-index:100}
+.top-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:16px}
+.logo{font-size:22px;font-weight:800;background:linear-gradient(135deg,var(--acc),var(--acc2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap}
+.page-nav{display:flex;gap:6px;flex:1;justify-content:flex-end}
+.page-nav a{padding:10px 16px;border-radius:10px;border:1px solid var(--bdr);background:rgba(255,255,255,.04);color:var(--tx3);font-weight:600;text-decoration:none;font-size:14px;transition:.15s;white-space:nowrap}
+.page-nav a.active{border-color:rgba(255,213,79,.35);background:rgba(255,213,79,.08);color:var(--acc)}
+.page-nav a:active{transform:scale(.98)}
+
+/* Main */
+.main{max-width:1100px;margin:0 auto;padding:20px}
+
+/* Search & Filters */
+.search-bar{position:relative;margin-bottom:16px}
+.search-bar input{width:100%;padding:14px 18px 14px 46px;border-radius:14px;border:1px solid var(--bdr);background:var(--card);color:var(--tx);font-size:16px;outline:none;font-family:inherit}
+.search-bar input:focus{border-color:var(--acc)}
+.search-bar .ico{position:absolute;left:16px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--tx3);pointer-events:none}
+.filter-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.pill{padding:8px 14px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid var(--bdr);background:rgba(255,255,255,.03);color:var(--tx3);white-space:nowrap;transition:.12s}
+.pill:active{transform:scale(.96)}
+.pill.on{color:var(--tx);background:rgba(255,255,255,.1);border-color:var(--bdr2)}
+.pill-sep{width:1px;background:var(--bdr);margin:4px 4px;align-self:stretch}
+.skill-count{font-size:13px;color:var(--tx3);margin-bottom:12px;font-weight:500}
+
+/* Grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+@media(max-width:400px){.grid{grid-template-columns:1fr}}
+
+/* Skill Card */
+.sk{display:flex;align-items:center;gap:12px;padding:14px;border-radius:14px;border:1px solid var(--bdr);background:var(--card);cursor:pointer;transition:.15s;position:relative;overflow:hidden}
+.sk:active{transform:scale(.99);background:rgba(255,255,255,.03)}
+.sk-icon{width:52px;height:52px;border-radius:11px;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)}
+.sk-icon img{width:100%;height:100%;object-fit:cover;display:block}
+.sk-info{flex:1;min-width:0}
+.sk-name{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sk-row{display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap}
+.sk-badge{font-size:11px;padding:2px 8px;border-radius:5px;font-weight:600;border:1px solid}
+.sk-dmg{font-size:12px;font-weight:700;color:var(--acc2);margin-left:auto;white-space:nowrap;padding-left:8px}
+
+/* Detail Modal */
+.modal-bg{position:fixed;inset:0;z-index:1000;display:none;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.75);backdrop-filter:blur(4px)}
+.modal-bg.open{display:flex}
+.detail{background:linear-gradient(180deg,#141428,#0c1428);border:1px solid rgba(255,255,255,.1);border-radius:22px 22px 0 0;width:100%;max-width:640px;max-height:92vh;max-height:92dvh;display:flex;flex-direction:column;box-shadow:0 -10px 40px rgba(0,0,0,.5);padding-bottom:env(safe-area-inset-bottom,0)}
+@media(min-width:640px){.detail{border-radius:22px;max-height:82vh;margin-bottom:4vh}.modal-bg{align-items:center}}
+.detail-handle{width:44px;height:5px;border-radius:3px;background:rgba(255,255,255,.15);margin:12px auto 8px}
+@media(min-width:640px){.detail-handle{display:none}}
+.detail-head{padding:8px 22px 16px;display:flex;gap:14px;align-items:flex-start}
+.detail-icon{width:64px;height:64px;border-radius:14px;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,.04);border:2px solid rgba(255,255,255,.08)}
+.detail-icon img{width:100%;height:100%;object-fit:cover}
+.detail-hdr{flex:1;min-width:0}
+.detail-name{font-size:22px;font-weight:700}
+.detail-sub{font-size:13px;color:var(--tx3);margin-top:2px}
+.detail-close{background:none;border:none;color:#888;font-size:30px;cursor:pointer;padding:4px 8px;margin-left:auto;flex-shrink:0}
+.detail-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.detail-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 22px 32px}
+
+/* Range Grid */
+.range-section{margin-bottom:18px}
+.range-grid{display:inline-grid;gap:2px}
+.range-cell{width:14px;height:14px;border-radius:3px;background:rgba(255,255,255,.06)}
+.range-cell.hit{background:#e05040}
+.range-cell.self{background:#3aa5e8}
+.range-label{font-size:11px;color:var(--tx3);margin-top:4px}
+
+/* Stat Section */
+.stat-section{margin-bottom:18px}
+.stat-section-title{font-size:13px;color:var(--tx3);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px}
+.rarity-sel{display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap}
+.rsel{padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid var(--bdr);background:rgba(255,255,255,.03);color:var(--tx3);transition:.12s}
+.rsel.on{color:#0a0a16}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid var(--bdr);margin-bottom:6px}
+.stat-label{font-size:14px;color:var(--tx2);font-weight:500}
+.stat-val{font-size:16px;font-weight:700;color:var(--acc)}
+.stat-val.buff{color:#5ec98a}
+.stat-val.debuff{color:#e05252}
+
+/* Factor chips */
+.factor-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.factor{padding:8px 14px;border-radius:10px;font-size:13px;font-weight:600;background:rgba(92,201,138,.08);border:1px solid rgba(92,201,138,.2);color:#5ec98a}
+
+/* Description */
+.desc-box{padding:14px 16px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid var(--bdr);font-size:14px;color:var(--tx2);line-height:1.55;margin-bottom:18px}
+
+/* Loading */
+.loading{min-height:60vh;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--tx3);font-size:17px}
+.loading .spin{display:inline-block;width:28px;height:28px;border:3px solid var(--bdr);border-top-color:var(--acc);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.footer{text-align:center;padding:28px 0;font-size:12px;color:#222}
+
+@media(max-width:380px){.top-bar{padding:10px 14px}.logo{font-size:18px}.page-nav a{padding:8px 10px;font-size:12px}.main{padding:14px}.sk{padding:12px;gap:10px}.sk-icon{width:44px;height:44px}.sk-name{font-size:14px}}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="top-inner">
+    <div class="logo">⚔️ Sword × Staff</div>
+    <div class="page-nav">
+      <a href="index.html">Build</a>
+      <a href="simulator.html">Simulator</a>
+      <a href="skills.html" class="active">Skills</a>
+    </div>
+  </div>
+</div>
+
+<div class="main" id="app">
+  <div class="loading" id="loader"><div><div class="spin"></div><div>Loading skill database...</div></div></div>
+</div>
+
+<div class="modal-bg" id="modal"><div class="detail"><div class="detail-handle"></div><div id="detail-content"></div></div></div>
+
+<script>
+const SB="https://ysxbglavmdngayvinrzk.supabase.co",SK="sb_publishable_w9keP2-21tJKR6FcF0YIQA_6q3ykBk-";
+const IB=`${SB}/storage/v1/object/public/skill-icons`,LW="https://lootandwaifus.com/skills/swordxstaff";
+const RCOL={Rare:"#5f9aff",Epic:"#9660c4",Legendary:"#e68a23",Mythic:"#ebed63",Divine:"#e05252",Immortal:"#e884e8"};
+const RFLOW=["Rare","Epic","Legendary","Mythic","Divine","Immortal"];
+const PROF_COL={
+  Warrior:"#e05252",Knight:"#5b8dd9",Gladiator:"#e8943a",Paladin:"#4a7bc8",Berserker:"#cc4422",
+  Guardian:"#3a6ab5",Conqueror:"#b33318","Templar":"#2d5a9e","Ravager":"#992210",
+  "Firmament Paladin":"#2662a5","Meteor Gladiator":"#c03010","Aurora Paladin":"#2255a0",
+  Mage:"#9b59b6",Sorcerer:"#8e44ad",Sage:"#27ae60",Magus:"#7d3c98",Occultist:"#1e8449",
+  Destroyer:"#6c3483",Controller:"#196f3d","Magister":"#5b2c6f","Prophet":"#145a32",
+  "Burst Magus":"#5522a0","Truth Sage King":"#116633","Radiance Magus":"#4a1a80","Spirit Star Sage":"#0d5028"
+};
+const TIERS=["T1","T2","T3","T4","T5","T6","T7"];
+const FIELD_LABELS={
+  SkillAttack1:"Damage",SkillAttack2:"Damage 2",SkillAttack3:"Damage 3",SkillAttack4:"Damage 4",
+  SkillCureByHp:"Heal (HP%)",SkillCureByAttack:"Heal (ATK%)",SkillCureByTargetHp:"Heal (Target HP%)",
+  ShieldByTargetHp:"Shield (Target HP%)",ShieldByConvertedCurHp:"Shield (Cur HP%)",ShieldByDefence:"Shield (DEF%)",
+  StatusDmgAddPer:"Damage increase",StatusDmgReducePer:"Damage reduction",
+  StatusDmgVulnerablePer:"Vulnerability",StatusShieldAddPercent:"Shield increase",
+  StatusTypeDmgAddPer:"Type DMG increase",StatusIgnoreDefence:"DEF ignore",
+  AttackScale:"ATK increase",DefenceScale:"DEF increase",MaxHpScale:"HP increase",SpeedScale:"SPD increase",
+  DistanceAddDmgPercent:"Distance DMG",OnceHitHemophagiaPer:"Lifesteal",
+  DamageByDamage:"DMG (by DMG)",DamageByMaxHp:"DMG (by HP)",SuckHpByDamage:"HP drain",
+  SkillCostByCurHp:"HP cost (cur)",SkillCostByMaxHp:"HP cost (max)",
+  SkillTargetReduceHpPer:"Target HP reduction",SkillDmgUnitAddPer:"DMG per unit",
+  SkillDmgMaxAddPer:"Max DMG bonus",SkillDmgAddPerByTargetHp:"DMG by target HP",
+  SkillDmgAddPerByLargeTarget:"DMG vs large",
+  StatusAdd1:"Status 1",StatusAdd2:"Status 2",StatusAdd3:"Status 3",StatusAdd4:"Status 4",
+  BreakResilience:"Resilience Break",BreakResiliencePercent:"Resilience Break",
+};
+const FACTOR_LABELS={
+  Defence:"DEF",Attack:"ATK",MaxHp:"HP",Speed:"SPD",
+  EffectDodge:"Effect Resist",EffectRate:"Effect Hit",
+  CritRatePercentValue:"Crit Rate",CritAvoidPercentValue:"Crit Resist",
+  BlockPercentValue:"Block Rate",BlockAvoidPercentValue:"Accuracy",
+  ElementMaster:"Elem Mastery",ElementResistance:"Elem Resist",
+  KongFuMaster:"Phys Mastery",KongFuResistance:"Phys Resist",
+  CritPower:"Crit DMG",BlockValue:"Block Value",
+  BreakResiliencePercent:"Resilience Break",DmgAddPercent:"DMG+%",DmgReducePercent:"DMG Resist%",
+};
+
+let ALL=[],fTier="all",fType="all",fProf="all",selRarity="Legendary";
+function iu(s){const n=(s.id||"").replace("skill_","");return`${IB}/sprite_skill_${n}.png`}
+function iuf(s){return`${LW}/${s.id}.webp`}
+function profColor(p){return PROF_COL[p]||"#888"}
+function fmt(v){if(v>=1e6)return(v/1e6).toFixed(1)+"M";if(v>=1e3)return(v/1e3).toFixed(1)+"K";return String(Math.round(v))}
+
+function getMainStat(sk,rarity){
+  const sbr=sk.stats_by_rarity;
+  if(sbr&&sbr[rarity]){
+    const st=sbr[rarity];
+    for(const k of["SkillAttack1","SkillCureByHp","SkillCureByAttack","ShieldByDefence","ShieldByTargetHp","ShieldByConvertedCurHp"]){
+      if(st[k]&&typeof st[k]==="object"&&(st[k].pct||st[k].flat))
+        return{label:FIELD_LABELS[k]||k,pct:st[k].pct,flat:st[k].flat};
+    }
+  }
+  // Check extra_entity_stats for buffs
+  if(sk.extra_entity_stats){
+    for(const ex of sk.extra_entity_stats){
+      const est=ex.stats&&ex.stats[rarity];
+      if(!est)continue;
+      for(const k of Object.keys(est)){
+        if(typeof est[k]==="object"&&(est[k].pct||est[k].flat))
+          return{label:FIELD_LABELS[k]||k,pct:est[k].pct,flat:est[k].flat};
+      }
+    }
+  }
+  // Check passive_status_stats
+  if(sk.passive_status_stats){
+    for(const ps of sk.passive_status_stats){
+      const pst=ps.stats&&ps.stats[rarity];
+      if(!pst)continue;
+      for(const k of Object.keys(pst)){
+        if(typeof pst[k]==="object"&&(pst[k].pct||pst[k].flat))
+          return{label:FIELD_LABELS[k]||k,pct:pst[k].pct,flat:pst[k].flat};
+      }
+    }
+  }
+  return null;
+}
+function fmtStat(s){if(!s)return"";return`${s.pct}% + ${fmt(s.flat)}`}
+
+function render(){
+  const q=(document.getElementById("q")?.value||"").toLowerCase();
+  let sk=ALL.filter(s=>s.name);
+  if(fTier!=="all")sk=sk.filter(s=>s.tier===fTier);
+  if(fType!=="all")sk=sk.filter(s=>fType==="Technique"?s.type==="combat":s.type==="arcane");
+  if(fProf!=="all")sk=sk.filter(s=>s.profession===fProf);
+  if(q)sk=sk.filter(s=>s.name.toLowerCase().includes(q)||(s.cn_name||"").toLowerCase().includes(q)||(s.description||"").toLowerCase().includes(q)||(s.profession||"").toLowerCase().includes(q));
+
+  // Get unique professions for filter
+  const profs=[...new Set(ALL.filter(s=>s.name&&s.profession).map(s=>s.profession))].sort();
+
+  let h=`<div class="search-bar"><span class="ico">🔍</span><input id="q" placeholder="Search by name, class, or keyword..." oninput="render()" value="${q.replace(/"/g,'&quot;')}" autocomplete="off" autocorrect="off"></div>`;
+
+  // Filters
+  h+=`<div class="filter-bar">`;
+  h+=`<button class="pill${fType==="all"?" on":""}" onclick="fType='all';render()">All Types</button>`;
+  h+=`<button class="pill${fType==="Technique"?" on":""}" style="${fType==="Technique"?"color:var(--tech);border-color:var(--tech)":""}" onclick="fType='Technique';render()">Techniques</button>`;
+  h+=`<button class="pill${fType==="Charm"?" on":""}" style="${fType==="Charm"?"color:var(--chrm);border-color:var(--chrm)":""}" onclick="fType='Charm';render()">Charms</button>`;
+  h+=`<div class="pill-sep"></div>`;
+  TIERS.forEach(t=>{h+=`<button class="pill${fTier===t?" on":""}" onclick="fTier=fTier==='${t}'?'all':'${t}';render()">${t}</button>`});
+  h+=`</div>`;
+
+  // Profession filter (collapsible)
+  h+=`<div class="filter-bar">`;
+  h+=`<button class="pill${fProf==="all"?" on":""}" onclick="fProf='all';render()">All Classes</button>`;
+  profs.forEach(p=>{
+    const c=profColor(p);
+    h+=`<button class="pill${fProf===p?" on":""}" style="${fProf===p?`color:${c};border-color:${c}`:""}" onclick="fProf=fProf==='${p}'?'all':'${p}';render()">${p}</button>`;
+  });
+  h+=`</div>`;
+
+  // Rarity selector
+  h+=`<div class="filter-bar">`;
+  h+=`<span style="font-size:12px;color:var(--tx3);font-weight:600;padding:8px 4px">Stats @</span>`;
+  RFLOW.forEach(r=>{
+    const on=selRarity===r;
+    h+=`<button class="pill${on?" on":""}" style="${on?`background:${RCOL[r]};color:#0a0a16;border-color:${RCOL[r]}`:`color:${RCOL[r]}`}" onclick="selRarity='${r}';render()">${r}</button>`;
+  });
+  h+=`</div>`;
+
+  h+=`<div class="skill-count">${sk.length} skill${sk.length!==1?"s":""}</div>`;
+  h+=`<div class="grid">`;
+  sk.forEach(s=>{
+    const pc=profColor(s.profession);
+    const rc=RCOL[s.initial_rarity]||"#888";
+    const isT=s.type==="combat";
+    const ms=getMainStat(s,selRarity);
+    h+=`<div class="sk" onclick="openDetail('${s.id}')">`;
+    h+=`<div class="sk-icon"><img src="${iu(s)}" onerror="this.onerror=null;this.src='${iuf(s)}'" loading="lazy"></div>`;
+    h+=`<div class="sk-info"><div class="sk-name">${s.name}</div><div class="sk-row">`;
+    h+=`<span class="sk-badge" style="background:${pc}18;color:${pc};border-color:${pc}33">${s.profession||s.class||""}</span>`;
+    h+=`<span class="sk-badge" style="background:${isT?"var(--tech)":"var(--chrm)"}18;color:${isT?"var(--tech)":"var(--chrm)"};border-color:${isT?"var(--tech)":"var(--chrm)"}33">${isT?"Technique":"Charm"}</span>`;
+    h+=`<span class="sk-badge" style="background:${rc}18;color:${rc};border-color:${rc}33">${s.initial_rarity||""}</span>`;
+    if(ms)h+=`<span class="sk-dmg">${fmtStat(ms)}</span>`;
+    h+=`</div></div></div>`;
+  });
+  h+=`</div><div class="footer">Sword × Staff Skill Database • ${ALL.length} skills</div>`;
+  document.getElementById("app").innerHTML=h;
+}
+
+function renderRangeGrid(cells){
+  if(!cells||!cells.length)return"";
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  const set=new Set();
+  cells.forEach(c=>{
+    minX=Math.min(minX,c.x);maxX=Math.max(maxX,c.x);
+    minY=Math.min(minY,c.y);maxY=Math.max(maxY,c.y);
+    set.add(`${c.x},${c.y}`);
+  });
+  // Include caster position
+  minX=Math.min(minX,0);maxX=Math.max(maxX,0);
+  minY=Math.min(minY,0);maxY=Math.max(maxY,0);
+  // Add 1 cell padding
+  minX--;maxX++;minY--;maxY++;
+  const cols=maxX-minX+1,rows=maxY-minY+1;
+  let g=`<div class="range-section"><div class="stat-section-title">Range</div>`;
+  g+=`<div class="range-grid" style="grid-template-columns:repeat(${cols},14px)">`;
+  for(let y=minY;y<=maxY;y++){
+    for(let x=minX;x<=maxX;x++){
+      const isSelf=x===0&&y===0;
+      const isHit=set.has(`${x},${y}`);
+      g+=`<div class="range-cell${isHit?" hit":""}${isSelf?" self":""}"></div>`;
+    }
+  }
+  g+=`</div><div class="range-label"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#3aa5e8;vertical-align:middle;margin-right:4px"></span>Self <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#e05040;vertical-align:middle;margin:0 4px 0 10px"></span>Hit area</div></div>`;
+  return g;
+}
+
+function renderStats(sk,rarity){
+  let rows=[];
+  const sbr=sk.stats_by_rarity;
+  if(sbr&&sbr[rarity]){
+    const st=sbr[rarity];
+    for(const[k,v]of Object.entries(st)){
+      if(k==="CD")continue;
+      if(typeof v==="object"&&(v.pct||v.flat)){
+        rows.push({label:FIELD_LABELS[k]||k,val:`${v.pct}% + ${fmt(v.flat)}`,type:"main"});
+      }else if(typeof v==="number"&&v){
+        rows.push({label:FIELD_LABELS[k]||k,val:String(Math.round(v*10)/10),type:"main"});
+      }
+    }
+  }
+  // Extra entities (buff effects)
+  if(sk.extra_entity_stats){
+    sk.extra_entity_stats.forEach(ex=>{
+      const est=ex.stats&&ex.stats[rarity];
+      if(!est)return;
+      for(const[k,v]of Object.entries(est)){
+        if(k==="CD")continue;
+        if(typeof v==="object"&&(v.pct||v.flat))
+          rows.push({label:FIELD_LABELS[k]||k,val:`${v.pct}% + ${fmt(v.flat)}`,type:"buff"});
+      }
+    });
+  }
+  // Passive status stats
+  if(sk.passive_status_stats){
+    sk.passive_status_stats.forEach(ps=>{
+      const pst=ps.stats&&ps.stats[rarity];
+      if(!pst)return;
+      for(const[k,v]of Object.entries(pst)){
+        if(k==="CD")continue;
+        if(typeof v==="object"&&(v.pct||v.flat))
+          rows.push({label:FIELD_LABELS[k]||k,val:`${v.pct}% + ${fmt(v.flat)}`,type:"buff"});
+      }
+    });
+  }
+  if(!rows.length)return"";
+  let h=`<div class="stat-section"><div class="stat-section-title">Stats at ${rarity}</div>`;
+  // Rarity selector
+  h+=`<div class="rarity-sel">`;
+  const rr=sk.rarity_range||[];
+  const mi=RFLOW.indexOf(rr[0]||"Rare"),mx=RFLOW.indexOf(rr[1]||"Immortal");
+  for(let i=Math.max(0,mi);i<=Math.min(5,mx);i++){
+    const r=RFLOW[i],on=rarity===r;
+    h+=`<button class="rsel${on?" on":""}" style="${on?`background:${RCOL[r]};border-color:${RCOL[r]}`:`color:${RCOL[r]}`}" onclick="detailRarity='${r}';refreshDetail()">${r}</button>`;
+  }
+  h+=`</div>`;
+  rows.forEach(r=>{
+    const cls=r.type==="buff"?"buff":r.type==="debuff"?"debuff":"";
+    h+=`<div class="stat-row"><span class="stat-label">${r.label}</span><span class="stat-val ${cls}">${r.val}</span></div>`;
+  });
+  h+=`</div>`;
+  return h;
+}
+
+let detailSkill=null,detailRarity="Legendary";
+function openDetail(id){
+  detailSkill=ALL.find(s=>s.id===id);
+  if(!detailSkill)return;
+  detailRarity=selRarity;
+  refreshDetail();
+  document.getElementById("modal").classList.add("open");
+  document.body.style.overflow="hidden";
+}
+function refreshDetail(){
+  const s=detailSkill;if(!s)return;
+  const pc=profColor(s.profession);
+  const isT=s.type==="combat";
+  let h=`<div class="detail-head">`;
+  h+=`<div class="detail-icon"><img src="${iu(s)}" onerror="this.onerror=null;this.src='${iuf(s)}'"></div>`;
+  h+=`<div class="detail-hdr"><div class="detail-name">${s.name}</div>`;
+  h+=`<div class="detail-sub">${s.cn_name||""} ${s.name_jp&&s.name_jp!==s.cn_name?"• "+s.name_jp:""}</div>`;
+  h+=`<div class="detail-tags">`;
+  h+=`<span class="sk-badge" style="background:${pc}18;color:${pc};border-color:${pc}33">${s.profession||""}</span>`;
+  h+=`<span class="sk-badge" style="background:${isT?"var(--tech)":"var(--chrm)"}18;color:${isT?"var(--tech)":"var(--chrm)"};border-color:${isT?"var(--tech)":"var(--chrm)"}33">${isT?"Technique":"Charm"}</span>`;
+  const rc=RCOL[s.initial_rarity]||"#888";
+  h+=`<span class="sk-badge" style="background:${rc}18;color:${rc};border-color:${rc}33">${s.initial_rarity||""}</span>`;
+  if(s.tier)h+=`<span class="sk-badge" style="background:rgba(255,255,255,.06);color:var(--tx2);border-color:var(--bdr)">${s.tier}</span>`;
+  if(s.cooldown>0)h+=`<span class="sk-badge" style="background:rgba(255,255,255,.06);color:var(--tx2);border-color:var(--bdr)">CD ${s.cooldown}</span>`;
+  if(s.element)h+=`<span class="sk-badge" style="background:rgba(255,255,255,.06);color:var(--tx2);border-color:var(--bdr)">${s.element}</span>`;
+  h+=`</div></div>`;
+  h+=`<button class="detail-close" onclick="closeDetail()">✕</button></div>`;
+  h+=`<div class="detail-body">`;
+
+  // Passive factors
+  const pf=s.passive_factors;
+  if(pf&&Object.keys(pf).length){
+    h+=`<div class="stat-section"><div class="stat-section-title">Passive Bonuses</div><div class="factor-row">`;
+    for(const[k,v]of Object.entries(pf)){
+      h+=`<div class="factor">${FACTOR_LABELS[k]||k}: ${v}</div>`;
+    }
+    h+=`</div></div>`;
+  }
+
+  // Stats
+  h+=renderStats(s,detailRarity);
+
+  // Range grid
+  h+=renderRangeGrid(s.hit_cells);
+
+  // Description
+  if(s.description){
+    h+=`<div class="stat-section-title" style="margin-bottom:8px">Effect</div>`;
+    h+=`<div class="desc-box">${s.description}</div>`;
+  }
+
+  // Tags
+  if(s.tags&&s.tags.length){
+    h+=`<div class="stat-section-title" style="margin-bottom:8px">Tags</div>`;
+    h+=`<div class="filter-bar" style="margin-bottom:18px">${s.tags.map(t=>`<span class="pill on">${t}</span>`).join("")}</div>`;
+  }
+
+  h+=`</div>`;
+  document.getElementById("detail-content").innerHTML=h;
+}
+function closeDetail(){document.getElementById("modal").classList.remove("open");document.body.style.overflow=""}
+document.getElementById("modal").addEventListener("click",e=>{if(e.target.id==="modal")closeDetail()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDetail()});
+
+async function init(){
+  try{
+    const r=await fetch(`${SB}/rest/v1/skills?select=*&order=name&limit=500`,{headers:{apikey:SK,Authorization:`Bearer ${SK}`}});
+    if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    ALL=(await r.json()).filter(s=>s.name);
+    render();
+  }catch(e){
+    document.getElementById("app").innerHTML=`<div class="loading"><div>⚠️ Failed to load: ${e.message}</div></div>`;
+  }
+}
+init();
+</script>
+</body>
+</html>
