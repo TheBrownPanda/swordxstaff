@@ -192,6 +192,13 @@ const FIELD_LABELS={
   SkillDmgAddPerByLargeTarget:"DMG vs large",
   StatusAdd1:"Status 1",StatusAdd2:"Status 2",StatusAdd3:"Status 3",StatusAdd4:"Status 4",
   BreakResilience:"Resilience Break",BreakResiliencePercent:"Resilience Break",
+  CritRatePercent:"Crit Rate",CritAvoidPercent:"Crit Resist",
+  BlockPercent:"Block Rate",BlockAvoidPercent:"Accuracy",
+  DmgAddPercent:"DMG+%",DmgReducePercent:"DMG Resist%",FinalDamageReducePercent:"Final DMG Resist%",
+  CureAdd:"Heal+",BeCureAdd:"Heal Received+",
+  FixedCritPower:"Crit DMG",FixedBlockValue:"Block Value",
+  FixedDmgAdd:"Flat DMG+",FixedDmgReduce:"Flat DMG Resist",
+  FixedAttack:"Flat ATK",FixedDefence:"Flat DEF",FixedMaxHp:"Flat HP",FixedSpeed:"Flat SPD",
 };
 const FACTOR_LABELS={
   Defence:"DEF",Attack:"ATK",MaxHp:"HP",Speed:"SPD",
@@ -218,19 +225,22 @@ function getMainStat(sk,rarity){
   const sbr=sk.stats_by_rarity;
   if(sbr&&sbr[rarity]){
     const st=sbr[rarity];
-    for(const k of["SkillAttack1","SkillCureByHp","SkillCureByAttack","ShieldByDefence","ShieldByTargetHp","ShieldByConvertedCurHp"]){
+    for(const k of["SkillAttack1","SkillCureByHp","SkillCureByAttack","ShieldByDefence","ShieldByTargetHp","ShieldByConvertedCurHp","StatusDmgAddPer","StatusDmgReducePer","AttackScale","DefenceScale"]){
       if(st[k]&&typeof st[k]==="object"&&(st[k].pct||st[k].flat))
         return{label:FIELD_LABELS[k]||k,pct:st[k].pct,flat:st[k].flat};
     }
   }
-  // Check extra_entity_stats for buffs
+  // Check extra_entity_stats for buffs (paired or standalone)
   if(sk.extra_entity_stats){
     for(const ex of sk.extra_entity_stats){
       const est=ex.stats&&ex.stats[rarity];
       if(!est)continue;
-      for(const k of Object.keys(est)){
-        if(typeof est[k]==="object"&&(est[k].pct||est[k].flat))
-          return{label:FIELD_LABELS[k]||k,pct:est[k].pct,flat:est[k].flat};
+      for(const[k,v]of Object.entries(est)){
+        if(k==="CD")continue;
+        if(typeof v==="object"&&(v.pct||v.flat))
+          return{label:FIELD_LABELS[k]||k,pct:v.pct,flat:v.flat};
+        if(typeof v==="number"&&v)
+          return{label:FIELD_LABELS[k]||k,pct:v,flat:0,standalone:true};
       }
     }
   }
@@ -239,15 +249,22 @@ function getMainStat(sk,rarity){
     for(const ps of sk.passive_status_stats){
       const pst=ps.stats&&ps.stats[rarity];
       if(!pst)continue;
-      for(const k of Object.keys(pst)){
-        if(typeof pst[k]==="object"&&(pst[k].pct||pst[k].flat))
-          return{label:FIELD_LABELS[k]||k,pct:pst[k].pct,flat:pst[k].flat};
+      for(const[k,v]of Object.entries(pst)){
+        if(k==="CD")continue;
+        if(typeof v==="object"&&(v.pct||v.flat))
+          return{label:FIELD_LABELS[k]||k,pct:v.pct,flat:v.flat};
+        if(typeof v==="number"&&v)
+          return{label:FIELD_LABELS[k]||k,pct:v,flat:0,standalone:true};
       }
     }
   }
   return null;
 }
-function fmtStat(s){if(!s)return"";return`${s.pct}% + ${fmt(s.flat)}`}
+function fmtStat(s){
+  if(!s)return"";
+  if(s.standalone)return`${s.label}: ${s.pct}`;
+  return`${s.pct}% + ${fmt(s.flat)}`;
+}
 
 function render(){
   const q=(document.getElementById("q")?.value||"").toLowerCase();
@@ -346,40 +363,36 @@ function renderRangeGrid(cells){
 
 function renderStats(sk,rarity){
   let rows=[];
-  const sbr=sk.stats_by_rarity;
-  if(sbr&&sbr[rarity]){
-    const st=sbr[rarity];
-    for(const[k,v]of Object.entries(st)){
+  function addRows(statsObj, type){
+    if(!statsObj)return;
+    for(const[k,v]of Object.entries(statsObj)){
       if(k==="CD")continue;
       if(typeof v==="object"&&(v.pct||v.flat)){
-        rows.push({label:FIELD_LABELS[k]||k,val:`${v.pct}% + ${fmt(v.flat)}`,type:"main"});
+        rows.push({label:FIELD_LABELS[k]||k,val:`${v.pct}% + ${fmt(v.flat)}`,type});
       }else if(typeof v==="number"&&v){
-        rows.push({label:FIELD_LABELS[k]||k,val:String(Math.round(v*10)/10),type:"main"});
+        const label=FIELD_LABELS[k]||k;
+        // Format: percentage fields show %, flat fields show raw number
+        const isPercent=k.includes('Percent')||k.includes('Add')||k.includes('Reduce')||k.includes('Scale')||k==='CureAdd'||k==='BeCureAdd';
+        rows.push({label,val:isPercent?`${v}%`:String(Math.round(v)),type});
       }
     }
   }
-  // Extra entities (buff effects)
+  
+  const sbr=sk.stats_by_rarity;
+  if(sbr&&sbr[rarity]) addRows(sbr[rarity],"main");
+  
+  // Extra entities (buff effects from active skills)
   if(sk.extra_entity_stats){
     sk.extra_entity_stats.forEach(ex=>{
       const est=ex.stats&&ex.stats[rarity];
-      if(!est)return;
-      for(const[k,v]of Object.entries(est)){
-        if(k==="CD")continue;
-        if(typeof v==="object"&&(v.pct||v.flat))
-          rows.push({label:FIELD_LABELS[k]||k,val:`${v.pct}% + ${fmt(v.flat)}`,type:"buff"});
-      }
+      if(est) addRows(est,"buff");
     });
   }
   // Passive status stats
   if(sk.passive_status_stats){
     sk.passive_status_stats.forEach(ps=>{
       const pst=ps.stats&&ps.stats[rarity];
-      if(!pst)return;
-      for(const[k,v]of Object.entries(pst)){
-        if(k==="CD")continue;
-        if(typeof v==="object"&&(v.pct||v.flat))
-          rows.push({label:FIELD_LABELS[k]||k,val:`${v.pct}% + ${fmt(v.flat)}`,type:"buff"});
-      }
+      if(pst) addRows(pst,"buff");
     });
   }
   if(!rows.length)return"";
@@ -430,15 +443,8 @@ function refreshDetail(){
   h+=`<button class="detail-close" onclick="closeDetail()">✕</button></div>`;
   h+=`<div class="detail-body">`;
 
-  // Passive factors
-  const pf=s.passive_factors;
-  if(pf&&Object.keys(pf).length){
-    h+=`<div class="stat-section"><div class="stat-section-title">Passive Bonuses</div><div class="factor-row">`;
-    for(const[k,v]of Object.entries(pf)){
-      h+=`<div class="factor">${FACTOR_LABELS[k]||k}: ${v}</div>`;
-    }
-    h+=`</div></div>`;
-  }
+  // Passive factors — only show if we have readable labels, skip raw internal values
+  // (The actual scaled values come from status_entities_computed which are shown in renderStats)
 
   // Stats
   h+=renderStats(s,detailRarity);
