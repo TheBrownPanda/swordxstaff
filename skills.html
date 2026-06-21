@@ -371,79 +371,157 @@ function renderRangeGrid(cells){
   return g;
 }
 
-function renderStats(sk,rarity){
+function renderStats(sk,rarity,star,level){
   let rows=[];
-  function addRows(statsObj, type){
-    if(!statsObj)return;
-    for(const[k,v]of Object.entries(statsObj)){
-      if(k==="CD")continue;
-      if(typeof v==="object"&&(v.pct||v.flat)){
-        rows.push({label:FIELD_LABELS[k]||k,val:`${v.pct}% + ${fmt(v.flat)}`,type});
-      }else if(typeof v==="number"&&v){
-        const label=FIELD_LABELS[k]||k;
-        // Format: percentage fields show %, flat fields show raw number
-        const isPercent=k.includes('Percent')||k.includes('Add')||k.includes('Reduce')||k.includes('Scale')||k==='CureAdd'||k==='BeCureAdd';
-        rows.push({label,val:isPercent?`${v}%`:String(Math.round(v)),type});
+  if(!CURVES){
+    // Fallback to precomputed if curves not loaded
+    const sbr=sk.stats_by_rarity;if(sbr&&sbr[rarity])for(const[k,v]of Object.entries(sbr[rarity])){if(k==="CD")continue;if(typeof v==="object"&&(v.pct||v.flat))rows.push({label:FIELD_LABELS[k]||k,val:`${v.pct}% + ${fmt(v.flat)}`})}
+    if(sk.passive_factor_stats&&sk.passive_factor_stats[rarity])for(const[k,v]of Object.entries(sk.passive_factor_stats[rarity])){if(v.pct||v.flat)rows.push({label:v.label||k,val:v.pct?`${v.pct}% + ${fmt(v.flat)}`:fmt(v.flat)})}
+  } else {
+    // Dynamic computation from curves
+    const RC=CURVES, rt=RC.rank_table, rm=RC.rarity_meta;
+    const rCode=RCODE[rarity]||'SSR';
+    const rankNo=parseInt(rt[rCode]?.[String(star)]||rt[rCode]?.['0']||6);
+    const subrank=rm[rCode]?.subrank||'';
+    
+    function getLvRow(gid){
+      const cid=RC.group_level_map?.[String(gid)]?.[subrank];
+      if(!cid)return{};
+      for(const bk of['fixed_curves','all_fixed_curves']){
+        const b=RC[bk]?.[String(cid)];if(!b)continue;
+        const lvs=Object.keys(b).map(Number).sort((a,b)=>a-b);
+        let sel=lvs[0]||0;for(const l of lvs)if(l<=level)sel=l;
+        return b[String(sel)]||{};
       }
+      return{};
     }
-  }
-  
-  const sbr=sk.stats_by_rarity;
-  if(sbr&&sbr[rarity]) addRows(sbr[rarity],"main");
-  
-  // Extra entities (buff effects from active skills)
-  if(sk.extra_entity_stats){
-    sk.extra_entity_stats.forEach(ex=>{
-      const est=ex.stats&&ex.stats[rarity];
-      if(est) addRows(est,"buff");
-    });
-  }
-  // Passive status stats
-  if(sk.passive_status_stats){
-    sk.passive_status_stats.forEach(ps=>{
-      const pst=ps.stats&&ps.stats[rarity];
-      if(pst) addRows(pst,"buff");
-    });
-  }
-  // Passive factor computed stats
-  if(sk.passive_factor_stats){
-    const pfs=sk.passive_factor_stats[rarity];
-    if(pfs){
-      for(const[k,v]of Object.entries(pfs)){
-        if(v.pct||v.flat){
-          const val=v.pct?`${v.pct}% + ${fmt(v.flat)}`:(v.flat?fmt(v.flat):'');
-          if(val)rows.push({label:v.label||k,val,type:"buff"});
-        }else if(v.value){
-          rows.push({label:v.label||k,val:v.is_pct?`${v.value}%`:fmt(v.value),type:"buff"});
+    function computeEntity(ent){
+      const ev=ent.entity_values||{},rp=ent.rank_prop_id,gid=ent.group_level_prop_id;
+      const cs=ent.curve_source||'skill';
+      const bucket=cs==='status'?'status_curves':'rank_curves';
+      const rr=RC[bucket]?.[String(rp)]?.[String(rankNo)]||{};
+      const lr=getLvRow(gid);
+      const res=[];const done=new Set();
+      for(const[f,base]of Object.entries(ev)){
+        if(f==='CD'||done.has(f))continue;
+        const paired=FPAIR[f];
+        if(paired){
+          const pb=Number(base),ps=Number(rr[f]||0);
+          const pv=pb&&ps?(pb*ps)/1e6:0;
+          const fb=Number(ev[paired]||0),fr=Number(rr[paired]||0),fl=Number(lr[paired]||0);
+          const fv=fl&&fb&&fr?(fl*fb*fr)/1e8:0;
+          if(pv||fv)res.push({label:FIELD_LABELS[f]||f,val:`${(Math.round(pv*10)/10)}% + ${fmt(fv)}`});
+          done.add(f);done.add(paired);
+        }else if(!FPAIRV.has(f)){
+          const b=Number(base),s=Number(rr[f]||0);
+          const v=b&&s?(b*s)/1e6:0;
+          if(v){
+            const isPct=f.includes('Percent')||f.includes('Add')||f.includes('Reduce')||f.includes('Scale')||f==='CureAdd'||f==='BeCureAdd';
+            res.push({label:FIELD_LABELS[f]||f,val:isPct?`${Math.round(v*10)/10}%`:String(Math.round(v))});
+          }
+          done.add(f);
         }
       }
+      return res;
     }
+    function computePassive(sk){
+      const pf=sk.passive_factors;if(!pf||!Object.keys(pf).length)return[];
+      const rfid=sk.rank_factor_id,rpid=sk.rank_prop_id;
+      const rankRow=RC.passive_rank_curves?.[String(rpid)]?.[String(rankNo)]||{};
+      const scaleRow=RC.scale_curves?.[String(rfid)]?.[String(rankNo)]||{};
+      const levelRow=getLvRow(sk.group_level_prop_id);
+      const res=[];const done=new Set();
+      for(const f of Object.keys(pf)){
+        if(done.has(f))continue;
+        const paired=PPAIR[f];
+        if(paired&&pf[paired]!=null){
+          const factor=Number(pf[f]),rv=Number(rankRow[f]||0);
+          const pct=factor&&rv?(factor*rv)/1e6:0;
+          let base=Number(levelRow[paired]||0),fv=0;
+          if(base){let v=base;const rs=Number(rankRow[paired]||0);if(rs)v*=rs/10000;v*=Number(pf[paired]||0)/10000;const sc=Number(scaleRow[paired]||0);if(sc)v*=sc/10000;fv=v;}
+          if(pct||fv)res.push({label:FIELD_LABELS[f]||f,val:`${Math.round(pct*10)/10}% + ${fmt(fv)}`});
+          done.add(f);done.add(paired);
+        }else if(!PPAIRV.has(f)){
+          const isPct=f.endsWith('Percent');
+          let v=0;
+          if(isPct){const fac=Number(pf[f]),rv=Number(rankRow[f]||0);v=fac&&rv?(fac*rv)/1e6:0;}
+          else{let base=Number(levelRow[f]||0);if(base){const rs=Number(rankRow[f]||0);if(rs)base*=rs/10000;base*=Number(pf[f]||0)/10000;const sc=Number(scaleRow[f]||0);if(sc)base*=sc/10000;v=base;}}
+          if(v)res.push({label:FIELD_LABELS[f]||f,val:isPct?`${Math.round(v*10)/10}%`:fmt(v)});
+          done.add(f);
+        }
+      }
+      return res;
+    }
+    // Main entity
+    if(sk.entity_values&&Object.keys(sk.entity_values).length>1)rows.push(...computeEntity(sk));
+    // Extra entities
+    (sk.extra_entity_stats||[]).forEach(ex=>rows.push(...computeEntity(ex)));
+    // Passive status entities  
+    (sk.passive_status_stats||[]).forEach(ps=>rows.push(...computeEntity(ps)));
+    // Passive factors
+    rows.push(...computePassive(sk));
   }
-
   if(!rows.length)return"";
-  let h=`<div class="stat-section"><div class="stat-section-title">Stats at ${rarity}</div>`;
-  // Rarity selector
-  h+=`<div class="rarity-sel">`;
+  
+  // Build UI
   const rr=sk.rarity_range||[];
   const mi=RFLOW.indexOf(rr[0]||"Rare"),mx=RFLOW.indexOf(rr[1]||"Immortal");
+  const maxStar=parseInt(CURVES?.rarity_meta?.[RCODE[rarity]]?.max_star||3);
+  
+  let h=`<div class="stat-section"><div class="stat-section-title">Stats</div>`;
+  // Rarity selector
+  h+=`<div class="rarity-sel">`;
   for(let i=Math.max(0,mi);i<=Math.min(5,mx);i++){
     const r=RFLOW[i],on=rarity===r;
     h+=`<button class="rsel${on?" on":""}" style="${on?`background:${RCOL[r]};border-color:${RCOL[r]}`:`color:${RCOL[r]}`}" onclick="detailRarity='${r}';refreshDetail()">${r}</button>`;
   }
   h+=`</div>`;
+  // Star selector
+  h+=`<div class="rarity-sel">`;
+  for(let i=0;i<=maxStar;i++){
+    const on=star===i;
+    h+=`<button class="rsel${on?" on":""}" style="${on?"background:#aaa;color:#111;border-color:#aaa":""}" onclick="detailStar=${i};refreshDetail()">${i} ★</button>`;
+  }
+  h+=`</div>`;
+  // Level selector
+  h+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">`;
+  h+=`<span style="font-size:12px;color:var(--tx3);font-weight:600">Level</span>`;
+  h+=`<input type="range" min="1" max="400" value="${level}" oninput="detailLevel=+this.value;document.getElementById('lvl-num').textContent=this.value;refreshDetail()" style="flex:1;accent-color:var(--acc)">`;
+  h+=`<span id="lvl-num" style="font-size:14px;font-weight:700;color:var(--acc);min-width:32px">${level}</span>`;
+  h+=`</div>`;
+  
   rows.forEach(r=>{
-    const cls=r.type==="buff"?"buff":r.type==="debuff"?"debuff":"";
-    h+=`<div class="stat-row"><span class="stat-label">${r.label}</span><span class="stat-val ${cls}">${r.val}</span></div>`;
+    h+=`<div class="stat-row"><span class="stat-label">${r.label}</span><span class="stat-val buff">${r.val}</span></div>`;
   });
   h+=`</div>`;
   return h;
 }
 
-let detailSkill=null,detailRarity="Legendary";
+let detailSkill=null,detailRarity="Legendary",detailStar=0,detailLevel=1;
+let CURVES=null,curvesLoading=false;
+const RCODE={Rare:'R',Epic:'SR',Legendary:'SSR',Mythic:'UR',Divine:'LR',Immortal:'ER'};
+const FPAIR={SkillAttack1:'SkillFixedAttack1',SkillAttack2:'SkillFixedAttack2',SkillAttack3:'SkillFixedAttack3',SkillAttack4:'SkillFixedAttack4',SkillCureByHp:'SkillFixedCure',SkillCureByAttack:'SkillFixedCure',SkillCureByTargetHp:'SkillFixedCure',DistanceAddDmgPercent:'DistanceAddDmg',ShieldByTargetHp:'SkillFixedShield',ShieldByConvertedCurHp:'SkillFixedShield',ShieldByDefence:'SkillFixedShield',DamageByDamage:'FixedDamageByDamage',DamageByMaxHp:'FixedDamageByMaxHp',SuckHpByDamage:'FixedSuckHp',StatusDmgAddPer:'FixedStatusDmgAdd',StatusDmgReducePer:'FixedStatusDmgReduce',StatusDmgVulnerablePer:'FixedstatusDmgVulnerable',StatusShieldAddPercent:'StatusFixedShieldAdd',StatusTypeDmgAddPer:'FixedStatusTypeDmgAdd',StatusIgnoreDefence:'FixedStatusIgnoreDefence',AttackScale:'FixedAttack',DefenceScale:'FixedDefence',MaxHpScale:'FixedMaxHp',SpeedScale:'FixedSpeed',StatusAdd1:'StatusFixedAdd1',StatusAdd2:'StatusFixedAdd2',StatusAdd3:'StatusFixedAdd3',StatusAdd4:'StatusFixedAdd4'};
+const FPAIRV=new Set(Object.values(FPAIR));
+const PPAIR={CritRatePercent:'CritRatePercentValue',CritAvoidPercent:'CritAvoidPercentValue',BlockPercent:'BlockPercentValue',BlockAvoidPercent:'BlockAvoidPercentValue',CritPowerPercent:'CritPower',BlockValuePercent:'BlockValue',CureAddPercent:'CureAdd'};
+const PPAIRV=new Set(Object.values(PPAIR));
+
+async function loadCurves(){
+  if(CURVES||curvesLoading)return;
+  curvesLoading=true;
+  try{
+    const r=await fetch('curves.json');
+    CURVES=await r.json();
+    console.log('✅ Curves loaded');
+    if(detailSkill)refreshDetail();
+  }catch(e){console.warn('curves.json not found, using precomputed values');}
+  curvesLoading=false;
+}
+
 function openDetail(id){
   detailSkill=ALL.find(s=>s.id===id);
   if(!detailSkill)return;
-  detailRarity=selRarity;
+  detailRarity=selRarity;detailStar=0;detailLevel=1;
+  loadCurves();
   refreshDetail();
   document.getElementById("modal").classList.add("open");
   document.body.style.overflow="hidden";
@@ -472,7 +550,7 @@ function refreshDetail(){
   // (The actual scaled values come from status_entities_computed which are shown in renderStats)
 
   // Stats
-  h+=renderStats(s,detailRarity);
+  h+=renderStats(s,detailRarity,detailStar,detailLevel);
 
   // Range grid
   h+=renderRangeGrid(s.hit_cells);
