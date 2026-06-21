@@ -158,7 +158,8 @@ body{min-height:100vh;min-height:100dvh;background:linear-gradient(160deg,#08081
 <div class="container" style="display:none">
   <div class="page-nav">
     <a href="index.html" class="active">⚔️ Build Calculator</a>
-    <a href="simulator.html">🎯 Boss DPS Simulator</a>
+    <a href="simulator.html">🎯 Simulator</a>
+    <a href="skills.html">📚 Skills</a>
   </div>
   <div class="panel" id="class-panel"></div>
   <div class="panel" id="build-panel"></div>
@@ -216,9 +217,9 @@ function iu(s){const n=typeof s.id==="string"?s.id.replace("skill_",""):s.id;ret
 function iuf(s){const n=typeof s.id==="string"?s.id.replace("skill_",""):s.id;return`${LW}/skill_${n}.webp`}
 
 let AS=[],SC=null,T=[null,null,null,null],C_=[null,null,null,null],PT="Technique",PS=0,PF="all";
-const RIDX={Rare:1,Epic:4,Legendary:8,Mythic:14,Divine:22,Rainbow:33};
-const RARITIES=["Rare","Epic","Legendary","Mythic","Divine","Rainbow"];
-const RCOL={Rare:"#5f9aff",Epic:"#9660c4",Legendary:"#e68a23",Mythic:"#ebed63",Divine:"#e05252",Rainbow:"#e884e8"};
+const RARITIES=["Rare","Epic","Legendary","Mythic","Divine","Immortal"];
+const RCOL={Rare:"#5f9aff",Epic:"#9660c4",Legendary:"#e68a23",Mythic:"#ebed63",Divine:"#e05252",Immortal:"#e884e8"};
+const FIELD_LABELS={SkillAttack1:"Damage",SkillCureByHp:"Heal (HP%)",SkillCureByAttack:"Heal (ATK%)",ShieldByDefence:"Shield (DEF%)",ShieldByTargetHp:"Shield (Target HP%)",StatusDmgAddPer:"DMG increase",StatusDmgReducePer:"DMG reduction",AttackScale:"ATK increase",DefenceScale:"DEF increase"};
 let RARITY="Legendary";
 
 async function init(){
@@ -250,16 +251,35 @@ function rCP(){
   if(SC)h+=`<div class="class-path">Path: ${gc(SC).map(c=>`<span style="color:${CM[c]?.c}">${c}</span>`).join(" \u2192 ")}</div>`;
   p.innerHTML=h;
 }
+function sType(s){return s.type==="combat"||s.type==="Technique"?"Technique":"Charm"}
 function mc(sk,type,desc){
-  const cc=CM[sk.class]?.c||"#888";
+  const cc=CM[sk.profession||sk.class]?.c||CM[sk.class]?.c||"#888";
   const ec=elemColor(sk.element);
   let meta=`<span class="skill-class" style="background:${cc}18;color:${cc};border:1px solid ${cc}33">${sk.class}</span>`;
   meta+=`<span class="skill-type ${type.toLowerCase()}">${type}</span>`;
   if(sk.element)meta+=`<span class="skill-elem" style="background:${ec}1f;color:${ec};border:1px solid ${ec}40">${sk.element}</span>`;
   if(sk.cooldown!=null&&sk.cooldown>0)meta+=`<span class="skill-cd">CD ${sk.cooldown}</span>`;
   else if(sk.cooldown===0)meta+=`<span class="skill-cd">No CD</span>`;
-  if(sk.damage&&sk.damage.length){
-    const v=sk.damage[RIDX[RARITY]];
+  if(sk.stats_by_rarity&&sk.stats_by_rarity[RARITY]){
+    const st=sk.stats_by_rarity[RARITY];
+    for(const k of["SkillAttack1","SkillCureByHp","SkillCureByAttack","ShieldByDefence","ShieldByTargetHp","StatusDmgAddPer","StatusDmgReducePer","AttackScale","DefenceScale"]){
+      if(st[k]&&typeof st[k]==="object"&&(st[k].pct||st[k].flat)){
+        const lbl=FIELD_LABELS[k]||"DMG";
+        const flat=st[k].flat>=1e3?(st[k].flat/1e3).toFixed(1)+"K":st[k].flat;
+        meta+=`<span class="skill-dmg">${st[k].pct}%+${flat} ${RARITY}</span>`;break;
+      }
+    }
+    if(!meta.includes("skill-dmg")){/* check extra_entity_stats */
+      if(sk.extra_entity_stats)for(const ex of sk.extra_entity_stats){
+        const est=ex.stats&&ex.stats[RARITY];if(!est)continue;
+        for(const[k,v]of Object.entries(est)){
+          if(typeof v==="object"&&(v.pct||v.flat)){const flat=v.flat>=1e3?(v.flat/1e3).toFixed(1)+"K":v.flat;meta+=`<span class="skill-dmg">${v.pct}%+${flat}</span>`;break;}
+        }if(meta.includes("skill-dmg"))break;
+      }
+    }
+  }else if(sk.damage&&sk.damage.length){
+    const ridx={Rare:1,Epic:4,Legendary:8,Mythic:14,Divine:22,Immortal:33};
+    const v=sk.damage[ridx[RARITY]];
     if(v!=null)meta+=`<span class="skill-dmg">${v}% ${RARITY}</span>`;
   }
   let tagsHtml="";
@@ -323,7 +343,7 @@ function toggleSearch(){
 }
 function closePicker(){document.getElementById("modal").classList.remove("open");document.body.style.overflow=""}
 function rFR(){
-  const cls=[...new Set(AS.filter(s=>s.type===PT&&s.name).map(s=>s.class))];
+  const cls=[...new Set(AS.filter(s=>sType(s)===PT&&s.name).map(s=>s.profession||s.class))];
   const ord=CL.filter(c=>cls.includes(c.id));
   let h=`<button class="fbtn${PF==="all"?" active":""}" onclick="PF='all';rFR();renderPicker()">All</button>`;
   ord.forEach(c=>{h+=`<button class="fbtn${PF===c.id?" active":""}" style="${PF===c.id?`color:${c.c};border-color:${c.c}`:""}" onclick="PF='${c.id}';rFR();renderPicker()">${c.id}</button>`;});
@@ -332,9 +352,9 @@ function rFR(){
 function renderPicker(){
   const q=document.getElementById("modal-search").value.toLowerCase();
   const eq=new Set([...T,...C_].filter(Boolean).map(s=>s.id));
-  let sk=AS.filter(s=>s.type===PT&&s.name&&!eq.has(s.id));
-  if(PF!=="all")sk=sk.filter(s=>s.class===PF);
-  else if(SC){const ch=gc(SC);sk=sk.filter(s=>ch.includes(s.class))}
+  let sk=AS.filter(s=>sType(s)===PT&&s.name&&!eq.has(s.id));
+  if(PF!=="all")sk=sk.filter(s=>(s.profession||s.class)===PF);
+  else if(SC){const ch=gc(SC);sk=sk.filter(s=>ch.includes(s.profession||s.class))}
   if(q)sk=sk.filter(s=>s.name.toLowerCase().includes(q)||(s.description||"").toLowerCase().includes(q));
   const b=document.getElementById("modal-body");
   if(!sk.length){b.innerHTML=`<div class="no-results">No matching skills</div>`;return}
