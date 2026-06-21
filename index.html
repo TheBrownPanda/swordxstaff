@@ -190,7 +190,7 @@ body{min-height:100vh;min-height:100dvh;background:linear-gradient(160deg,#08081
 
 <script>
 const SB="https://ysxbglavmdngayvinrzk.supabase.co",SK="sb_publishable_w9keP2-21tJKR6FcF0YIQA_6q3ykBk-";
-const IB=`${SB}/storage/v1/object/public/skill-icons`,LW="https://lootandwaifus.com/skills/swordxstaff";
+const IB=`${SB}/storage/v1/object/public/skill-icons`,LW="https://lootandwaifus.com/skills/swordxstaff",TS="https://www.tsueken.com/content/assets/skills";
 const CL=[
   {id:"Warrior",p:"Sword",c:"#e05252"},
   {id:"Knight",p:"Sword",c:"#5b8dd9",pa:"Warrior"},
@@ -213,8 +213,9 @@ const CL=[
 ];
 const CM=Object.fromEntries(CL.map(c=>[c.id,c]));
 function gc(s){const r=[s];let x=s;while(CM[x]?.pa){x=CM[x].pa;r.unshift(x)}return r}
-function iu(s){const n=typeof s.id==="string"?s.id.replace("skill_",""):s.id;return`${IB}/sprite_skill_${n}.png`}
-function iuf(s){const n=typeof s.id==="string"?s.id.replace("skill_",""):s.id;return`${LW}/skill_${n}.webp`}
+function iu(s){const n=(s.id||"").replace("skill_","");return`${IB}/skill_${n}.webp`}
+function iuf(s){const n=(s.id||"").replace("skill_","");return`${IB}/sprite_skill_${n}.png`}
+function iuf2(s){return`${LW}/${s.id}.png`}
 
 let AS=[],SC=null,T=[null,null,null,null],C_=[null,null,null,null],PT="Technique",PS=0,PF="all";
 const RARITIES=["Rare","Epic","Legendary","Mythic","Divine","Immortal"];
@@ -284,7 +285,7 @@ function mc(sk,type,desc){
   }
   let tagsHtml="";
   if(desc&&sk.tags&&sk.tags.length)tagsHtml=`<div class="skill-tags">${sk.tags.map(t=>`<span class="skill-tag">${t}</span>`).join("")}</div>`;
-  return`<div class="skill-icon"><img src="${iu(sk)}" onerror="this.onerror=null;this.src='${iuf(sk)}'" alt=""></div>
+  return`<div class="skill-icon"><img src="${iu(sk)}" onerror="this.onerror=()=>{this.onerror=null;this.src='${iuf2(sk)}'};this.src='${iuf(sk)}'" alt=""></div>
   <div class="skill-info"><div class="skill-name">${sk.name}</div>
   <div class="skill-meta">${meta}</div>
   ${desc&&sk.description?`<div class="skill-desc">${sk.description}</div>`:""}${tagsHtml}</div>`;
