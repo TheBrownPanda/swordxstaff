@@ -258,11 +258,21 @@ function getMainStat(sk,rarity){
       }
     }
   }
+  // Check passive_factor_stats
+  if(sk.passive_factor_stats&&sk.passive_factor_stats[rarity]){
+    const pfs=sk.passive_factor_stats[rarity];
+    for(const[k,v]of Object.entries(pfs)){
+      if(v.flat)return{label:v.label||k,pct:v.pct||0,flat:v.flat,standalone:!v.pct};
+      if(v.value)return{label:v.label||k,pct:v.value,flat:0,standalone:true};
+    }
+  }
   return null;
 }
 function fmtStat(s){
   if(!s)return"";
-  if(s.standalone)return`${s.label}: ${s.pct}`;
+  if(s.standalone)return fmt(s.pct||s.flat);
+  if(!s.pct)return fmt(s.flat);
+  if(!s.flat)return`${s.pct}%`;
   return`${s.pct}% + ${fmt(s.flat)}`;
 }
 
@@ -395,6 +405,21 @@ function renderStats(sk,rarity){
       if(pst) addRows(pst,"buff");
     });
   }
+  // Passive factor computed stats
+  if(sk.passive_factor_stats){
+    const pfs=sk.passive_factor_stats[rarity];
+    if(pfs){
+      for(const[k,v]of Object.entries(pfs)){
+        if(v.pct||v.flat){
+          const val=v.pct?`${v.pct}% + ${fmt(v.flat)}`:(v.flat?fmt(v.flat):'');
+          if(val)rows.push({label:v.label||k,val,type:"buff"});
+        }else if(v.value){
+          rows.push({label:v.label||k,val:v.is_pct?`${v.value}%`:fmt(v.value),type:"buff"});
+        }
+      }
+    }
+  }
+
   if(!rows.length)return"";
   let h=`<div class="stat-section"><div class="stat-section-title">Stats at ${rarity}</div>`;
   // Rarity selector
