@@ -228,7 +228,10 @@ function render(){
     h+=`</div></div></div>`;
   });
   h+=`</div><div class="footer">Sword × Staff Skill Database • ${ALL.length} skills</div>`;
+  const wasFocused=document.activeElement&&document.activeElement.id==="q";
+  const cursorPos=wasFocused?document.activeElement.selectionStart:null;
   document.getElementById("app").innerHTML=h;
+  if(wasFocused){const inp=document.getElementById("q");if(inp){inp.focus();if(cursorPos!=null)inp.setSelectionRange(cursorPos,cursorPos)}}
 }
 
 function renderRangeGrid(cells){
