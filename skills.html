@@ -6,135 +6,23 @@
 <title>Skill Database — Sword × Staff</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#080810;--card:#0e0e1c;--card2:#12122a;--bdr:rgba(255,255,255,.06);--bdr2:rgba(255,255,255,.12);
-  --tx:#e8e6e3;--tx2:#aaa;--tx3:#666;--acc:#ffd54f;--acc2:#ff8a65;
-  --tech:#5b8dd9;--chrm:#c084fc;
-  --rare:#5f9aff;--epic:#9660c4;--lege:#e68a23;--myth:#ebed63;--divine:#e05252;--immort:#e884e8;
-}
-html{background:var(--bg);color:var(--tx);font-family:'Outfit',system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
-body{min-height:100vh;min-height:100dvh;background:linear-gradient(160deg,#080810,#0e0e1c 40%,#0c1428)}
-
-/* Nav */
-.top-bar{padding:14px 20px;border-bottom:1px solid var(--bdr);background:rgba(0,0,0,.5);backdrop-filter:blur(14px);position:sticky;top:0;z-index:100}
-.top-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:16px}
-.logo{font-size:22px;font-weight:800;background:linear-gradient(135deg,var(--acc),var(--acc2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap}
-.page-nav{display:flex;gap:6px;flex:1;justify-content:flex-end}
-.page-nav a{padding:10px 16px;border-radius:10px;border:1px solid var(--bdr);background:rgba(255,255,255,.04);color:var(--tx3);font-weight:600;text-decoration:none;font-size:14px;transition:.15s;white-space:nowrap}
-.page-nav a.active{border-color:rgba(255,213,79,.35);background:rgba(255,213,79,.08);color:var(--acc)}
-.page-nav a:active{transform:scale(.98)}
-
-/* Main */
-.main{max-width:1100px;margin:0 auto;padding:20px}
-
-/* Search & Filters */
-.search-bar{position:relative;margin-bottom:16px}
-.search-bar input{width:100%;padding:14px 18px 14px 46px;border-radius:14px;border:1px solid var(--bdr);background:var(--card);color:var(--tx);font-size:16px;outline:none;font-family:inherit}
-.search-bar input:focus{border-color:var(--acc)}
-.search-bar .ico{position:absolute;left:16px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--tx3);pointer-events:none}
-.filter-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
-.pill{padding:8px 14px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid var(--bdr);background:rgba(255,255,255,.03);color:var(--tx3);white-space:nowrap;transition:.12s}
-.pill:active{transform:scale(.96)}
-.pill.on{color:var(--tx);background:rgba(255,255,255,.1);border-color:var(--bdr2)}
-.pill-sep{width:1px;background:var(--bdr);margin:4px 4px;align-self:stretch}
-.skill-count{font-size:13px;color:var(--tx3);margin-bottom:12px;font-weight:500}
-
-/* Class path filters */
-.class-paths{background:var(--card);border:1px solid var(--bdr);border-radius:14px;padding:14px;margin-bottom:16px}
-.path-row{margin-bottom:10px}
-.path-row:last-child{margin-bottom:0}
-.path-label{font-size:11px;color:var(--tx3);font-weight:700;letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:6px}
-.path-pills{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
-.path-pills::before{display:none}
-.cpill{display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 12px 4px}
-.cpill-name{font-size:13px;line-height:1.2}
-.cpill-tier{font-size:9px;color:var(--tx3);font-weight:500;letter-spacing:.5px}
-
-/* Grid */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
-@media(max-width:400px){.grid{grid-template-columns:1fr}}
-
-/* Skill Card */
-.sk{display:flex;align-items:center;gap:12px;padding:14px;border-radius:14px;border:1px solid var(--bdr);background:var(--card);cursor:pointer;transition:.15s;position:relative;overflow:hidden}
-.sk:active{transform:scale(.99);background:rgba(255,255,255,.03)}
-.sk-icon{width:52px;height:52px;border-radius:11px;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06)}
-.sk-icon img{width:100%;height:100%;object-fit:cover;display:block}
-.sk-info{flex:1;min-width:0}
-.sk-name{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sk-row{display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap}
-.sk-badge{font-size:11px;padding:2px 8px;border-radius:5px;font-weight:600;border:1px solid}
-.sk-dmg{font-size:12px;font-weight:700;color:var(--acc2);margin-left:auto;white-space:nowrap;padding-left:8px}
-
-/* Detail Modal */
-.modal-bg{position:fixed;inset:0;z-index:1000;display:none;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.75);backdrop-filter:blur(4px)}
-.modal-bg.open{display:flex}
-.detail{background:linear-gradient(180deg,#141428,#0c1428);border:1px solid rgba(255,255,255,.1);border-radius:22px 22px 0 0;width:100%;max-width:640px;max-height:92vh;max-height:92dvh;display:flex;flex-direction:column;box-shadow:0 -10px 40px rgba(0,0,0,.5);padding-bottom:env(safe-area-inset-bottom,0)}
-@media(min-width:640px){.detail{border-radius:22px;max-height:82vh;margin-bottom:4vh}.modal-bg{align-items:center}}
-.detail-handle{width:44px;height:5px;border-radius:3px;background:rgba(255,255,255,.15);margin:12px auto 8px}
-@media(min-width:640px){.detail-handle{display:none}}
-.detail-head{padding:8px 22px 16px;display:flex;gap:14px;align-items:flex-start}
-.detail-icon{width:64px;height:64px;border-radius:14px;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,.04);border:2px solid rgba(255,255,255,.08)}
-.detail-icon img{width:100%;height:100%;object-fit:cover}
-.detail-hdr{flex:1;min-width:0}
-.detail-name{font-size:22px;font-weight:700}
-.detail-sub{font-size:13px;color:var(--tx3);margin-top:2px}
-.detail-close{background:none;border:none;color:#888;font-size:30px;cursor:pointer;padding:4px 8px;margin-left:auto;flex-shrink:0}
-.detail-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.detail-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 22px 32px}
-
-/* Range Grid */
-.range-section{margin-bottom:18px}
-.range-grid{display:inline-grid;gap:2px}
-.range-cell{width:14px;height:14px;border-radius:3px;background:rgba(255,255,255,.06)}
-.range-cell.hit{background:#e05040}
-.range-cell.self{background:#3aa5e8}
-.range-label{font-size:11px;color:var(--tx3);margin-top:4px}
-
-/* Stat Section */
-.stat-section{margin-bottom:18px}
-.stat-section-title{font-size:13px;color:var(--tx3);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px}
-.rarity-sel{display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap}
-.rsel{padding:7px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid var(--bdr);background:rgba(255,255,255,.03);color:var(--tx3);transition:.12s}
-.rsel.on{color:#0a0a16}
-.stat-row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid var(--bdr);margin-bottom:6px}
-.stat-label{font-size:14px;color:var(--tx2);font-weight:500}
-.stat-val{font-size:16px;font-weight:700;color:var(--acc)}
-.stat-val.buff{color:#5ec98a}
-.stat-val.debuff{color:#e05252}
-
-/* Factor chips */
-.factor-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-.factor{padding:8px 14px;border-radius:10px;font-size:13px;font-weight:600;background:rgba(92,201,138,.08);border:1px solid rgba(92,201,138,.2);color:#5ec98a}
-
-/* Description */
-.desc-box{padding:14px 16px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid var(--bdr);font-size:14px;color:var(--tx2);line-height:1.55;margin-bottom:18px}
-
-/* Loading */
-.loading{min-height:60vh;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--tx3);font-size:17px}
-.loading .spin{display:inline-block;width:28px;height:28px;border:3px solid var(--bdr);border-top-color:var(--acc);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:12px}
-@keyframes spin{to{transform:rotate(360deg)}}
-.footer{text-align:center;padding:28px 0;font-size:12px;color:#222}
-
-@media(max-width:380px){.top-bar{padding:10px 14px}.logo{font-size:18px}.page-nav a{padding:8px 10px;font-size:12px}.main{padding:14px}.sk{padding:12px;gap:10px}.sk-icon{width:44px;height:44px}.sk-name{font-size:14px}}
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div class="top-bar">
   <div class="top-inner">
-    <div class="logo">⚔️ Sword × Staff</div>
+    <div class="logo">Sword <b>×</b> Staff</div>
     <div class="page-nav">
       <a href="index.html">Build</a>
-      <a href="simulator.html">Simulator</a>
+      <a href="simulator.html">DPS Calc</a>
       <a href="skills.html" class="active">Skills</a>
     </div>
   </div>
 </div>
 
 <div class="main" id="app">
-  <div class="loading" id="loader"><div><div class="spin"></div><div>Loading skill database...</div></div></div>
+  <div class="loading" id="loader"><div><div class="spin"></div><div>Loading skill database…</div></div></div>
 </div>
 
 <div class="modal-bg" id="modal"><div class="detail"><div class="detail-handle"></div><div id="detail-content"></div></div></div>
@@ -586,5 +474,4 @@ async function init(){
 }
 init();
 </script>
-</body>
-</html>
+</body></html>
