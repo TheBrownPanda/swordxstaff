@@ -429,7 +429,7 @@ function simulate() {
         totalCasts++;
         perSkill[s].dmg += result.total;
         perSkill[s].casts++;
-        cdReady[s] = r + 1 + (skill.cooldown || 0);
+        cdReady[s] = r + 1 + normCD(skill.cooldown);
         fired.push({ name: skill.name, dmg: result.total, elem: result.elem });
       }
     }
@@ -440,7 +440,7 @@ function simulate() {
     totalDmg, totalCasts, rounds, charmBuffs,
     perSkill: skills.map((s, i) => ({
       name: s.skill.name, elem: s.skill.element || "Physical",
-      cd: s.skill.cooldown || 0, rarity: s.cfg.rarity,
+      cd: normCD(s.skill.cooldown), rarity: s.cfg.rarity,
       ...perSkill[i]
     })),
     trace,
@@ -463,6 +463,8 @@ function toast(msg) { const t = document.getElementById("toast"); t.textContent 
 function iconUrl(sk) { const n = String(sk.id).replace("skill_", ""); return `${IB}/skill_${n}.webp`; }
 function iconFB(sk) { const n = String(sk.id).replace("skill_", ""); return `${IB}/sprite_skill_${n}.png`; }
 function sType(s) { return s.type === "combat" || s.type === "Technique" ? "technique" : "charm"; }
+// Normalize cooldown: game uses 0-3, but some data has values ×10 (10→1, 20→2, 30→3)
+function normCD(cd) { return (cd != null && cd >= 10) ? Math.round(cd / 10) : (cd || 0); }
 
 // ============================================================
 // Persistence (localStorage for build + player, Supabase for boss)
@@ -577,7 +579,7 @@ function slotHtml(type, i, slot) {
   const rarity = slot.rarity || sk.initial_rarity || "Legendary";
   const star = slot.star || 0;
   const maxStar = getMaxStar(rarity);
-  const cd = sk.cooldown != null ? `CD ${sk.cooldown}` : "";
+  const cd = sk.cooldown != null ? `CD ${normCD(sk.cooldown)}` : "";
   const elem = sk.element || "";
 
   // Get all hit groups for this skill
@@ -873,7 +875,7 @@ function renderPicker() {
   const body = document.getElementById("modal-body");
   if (!list.length) { body.innerHTML = `<div class="no-results">No matching skills</div>`; return; }
   body.innerHTML = list.map(s => {
-    const cd = s.cooldown != null && s.cooldown > 0 ? `CD ${s.cooldown}` : s.cooldown === 0 ? "No CD" : "";
+    const cd = s.cooldown != null && normCD(s.cooldown) > 0 ? `CD ${normCD(s.cooldown)}` : s.cooldown === 0 ? "No CD" : "";
     const elem = s.element || "";
     const col = ECOL[elem] || "#888";
     return `<div class="pick-card" onclick="pickSkill('${s.id}')">
