@@ -23,42 +23,51 @@ const FPAIR = {
   DefenceScale: "FixedDefence", MaxHpScale: "FixedMaxHp", SpeedScale: "FixedSpeed"
 };
 
-// Player stats used in damage formula
+// Player stats — grouped by formula zone, using DISPLAYED percentages from in-game stats page
 const PLAYER_STATS = [
-  { group: "Offense", keys: [
-    { k: "ATK", pct: false },
-    { k: "Crit Rate", pct: true },
-    { k: "Crit DMG", pct: true },
-    { k: "DMG Boost", pct: true },
-    { k: "PvE Bonus DMG", pct: true },
+  { group: "Zone 3 · Base", keys: [
+    { k: "ATK", pct: false, tip: "Your total ATK" },
   ]},
-  { group: "Elemental Affinity", keys: [
-    { k: "Physical Mastery", pct: false },
-    { k: "Wind Affinity", pct: false },
-    { k: "Water Affinity", pct: false },
-    { k: "Fire Affinity", pct: false },
-    { k: "Light Affinity", pct: false },
-    { k: "Dark Affinity", pct: false },
+  { group: "Zone 1 · DMG Boost", keys: [
+    { k: "DMG Boost", pct: true, tip: "伤害加成" },
+    { k: "PvE Bonus DMG", pct: true, tip: "对怪物伤害增加" },
+  ]},
+  { group: "Zone 2 · Mastery / Affinity (displayed %)", keys: [
+    { k: "Phys DMG Increase", pct: true, tip: "Physical mastery → displayed % increase" },
+    { k: "Elem DMG Increase", pct: true, tip: "Elemental mastery+affinity → displayed % increase" },
+  ]},
+  { group: "Zone 5 · Crit / Accuracy", keys: [
+    { k: "Crit Rate", pct: true },
+    { k: "Crit DMG", pct: true, tip: "Bonus above 100% (e.g. 150% crit = enter 50)" },
+    { k: "Accuracy", pct: false },
+  ]},
+  { group: "Zone 4 · Skill DMG Increase (from buffs/gear)", keys: [
+    { k: "General Skill DMG Up", pct: true, tip: "一般伤害提升 — gear affixes, Mantra, pet, etc." },
+    { k: "Special Skill DMG Up", pct: true, tip: "特殊伤害提升 — Water Momentum, Revenge, etc." },
   ]},
 ];
 
-// Boss stats used in damage formula
+// Boss stats — grouped by formula zone
 const BOSS_STATS = [
-  { group: "Defense", keys: [
+  { group: "Zone 3 · Defense", keys: [
     { k: "DEF", pct: false },
     { k: "HP", pct: false },
-    { k: "DMG RES", pct: true },
+  ]},
+  { group: "Zone 1 · Boss DMG RES", keys: [
+    { k: "DMG RES", pct: true, tip: "伤害抵抗" },
+    { k: "PvE DMG RES", pct: true, tip: "对玩家伤害抵抗 (usually 0 for dummy)" },
+  ]},
+  { group: "Zone 2 · Boss Resistance (displayed %)", keys: [
+    { k: "Phys RES Decrease", pct: true, tip: "Physical resistance → displayed % decrease" },
+    { k: "Elem RES Decrease", pct: true, tip: "Elemental resistance+aegis → displayed % decrease" },
+  ]},
+  { group: "Zone 5 · Boss Block / Crit RES", keys: [
     { k: "Crit RES", pct: true },
     { k: "Block Rate", pct: true },
-    { k: "Block Efficiency", pct: true },
+    { k: "Block DMG Resist", pct: true, tip: "格挡伤害抵抗 (min 50%)" },
   ]},
-  { group: "Elemental Aegis", keys: [
-    { k: "Physical RES", pct: false },
-    { k: "Wind Aegis", pct: false },
-    { k: "Water Aegis", pct: false },
-    { k: "Fire Aegis", pct: false },
-    { k: "Light Aegis", pct: false },
-    { k: "Dark Aegis", pct: false },
+  { group: "Zone 4 · Boss DMG Reduction", keys: [
+    { k: "DMG Reduction", pct: true, tip: "伤害减免 (max 50%)" },
   ]},
 ];
 
@@ -291,50 +300,71 @@ function computeCharmBuffs() {
 }
 
 // ============================================================
-// Per-skill damage calculation (single cast)
+// Per-skill damage calculation — matches TapTap formula diagram exactly
+// 伤害 = 技能面板 × Zone1 × Zone2 × Zone3 × Zone4 × Zone5 × Zone6
 // ============================================================
 function calcSkillDamage(skill, slotCfg, playerStats, bossStats, charmBuffs) {
   const atk = (playerStats.ATK || 0) * (1 + (charmBuffs.atkScale || 0) / 100);
   const def = bossStats.DEF || 0;
   const rarity = slotCfg.rarity || "Legendary";
   const star = slotCfg.star || 0;
+  const hits = slotCfg.hits || 1;
   const { pct, flat } = getSkillDmgAtLevel(skill, rarity, star, build.level);
-
-  const baseDmg = atk * (pct / 100) + flat;
-  const defMit = (atk + def) > 0 ? atk / (atk + def) : 0;
-
-  // Elemental affinity/mastery
-  let aff = 1;
   const elem = skill.element || "Physical";
-  if (elem !== "Physical") {
-    const a = playerStats[`${elem} Affinity`] || 0;
-    const g = bossStats[`${elem} Aegis`] || 0;
-    aff = (a + g) > 0 ? a / (a + g) : 1;
-  } else {
-    const ms = playerStats["Physical Mastery"] || 0;
-    const rs = bossStats["Physical RES"] || 0;
-    aff = (ms + rs) > 0 ? ms / (ms + rs) : 1;
-  }
 
-  // Crit averaging: effective crit rate reduced by boss Crit RES
-  const effCritRate = Math.max(0, (playerStats["Crit Rate"] || 0) - (bossStats["Crit RES"] || 0));
-  const critAvg = 1 + (effCritRate / 100) * ((playerStats["Crit DMG"] || 0) / 100);
+  // Skill Panel = (ATK × coefficient + flat) × hit count
+  const skillPanel = (atk * (pct / 100) + flat) * hits;
 
-  // DMG boost zone: player stat + charm buffs
-  const dmgBoost = 1 + ((playerStats["DMG Boost"] || 0) + (charmBuffs.dmgBoost || 0)) / 100;
-  const pve = 1 + ((playerStats["PvE Bonus DMG"] || 0) / 100);
-  const dmgRes = 1 - ((bossStats["DMG RES"] || 0) / 100);
+  // Zone 1: DMG Boost / DMG RES
+  // (1 + 伤害加成 + PvE增伤) / (1 + 伤害抵抗 + PvE抵抗)
+  const z1_num = 1 + ((playerStats["DMG Boost"] || 0) + (playerStats["PvE Bonus DMG"] || 0) + (charmBuffs.dmgBoost || 0)) / 100;
+  const z1_den = 1 + ((bossStats["DMG RES"] || 0) + (bossStats["PvE DMG RES"] || 0)) / 100;
+  const zone1 = z1_num / z1_den;
 
-  // Block zone
-  const blockRate = (bossStats["Block Rate"] || 0) / 100;
-  const blockEff = (bossStats["Block Efficiency"] || 0) / 100;
-  const blockMod = 1 - blockRate * blockEff;
+  // Zone 2: Mastery+Affinity / Resistance+Aegis (using DISPLAYED percentages)
+  // (1 + 精通增伤 + 亲和增伤) / (1 + 抗性减伤 + 庇护减伤)
+  const isPhys = (elem === "Physical");
+  const z2_num = 1 + (isPhys ? (playerStats["Phys DMG Increase"] || 0) : (playerStats["Elem DMG Increase"] || 0)) / 100;
+  const z2_den = 1 + (isPhys ? (bossStats["Phys RES Decrease"] || 0) : (bossStats["Elem RES Decrease"] || 0)) / 100;
+  const zone2 = z2_num / z2_den;
 
-  const total = Math.max(0, baseDmg * defMit * aff * critAvg * dmgBoost * pve * dmgRes * blockMod);
+  // Zone 3: DEF mitigation
+  // 攻击力 / (攻击力 + 防御力)
+  const zone3 = (atk + def) > 0 ? atk / (atk + def) : 0;
+
+  // Zone 4: Skill DMG increase (two separate multiplicative sub-zones) / DMG reduction
+  // ((1 + 一般伤害提升) × (1 + 特殊伤害提升)) / (1 + 伤害减免)
+  const z4_general = 1 + (playerStats["General Skill DMG Up"] || 0) / 100;
+  const z4_special = 1 + (playerStats["Special Skill DMG Up"] || 0) / 100;
+  const z4_reduction = 1 + Math.min(50, bossStats["DMG Reduction"] || 0) / 100; // capped at 50%
+  const zone4 = (z4_general * z4_special) / z4_reduction;
+
+  // Zone 5: Crit / Block (probability-weighted expected value)
+  // Block has priority over crit. If blocked: damage ÷ (1 + block_resist - accuracy)
+  // If not blocked and crit: damage × (1 + crit_dmg - crit_res)
+  // Crit DMG zone minimum = 1.3, Block resist zone minimum = 1.5
+  const critDmgBonus = Math.max(0.3, ((playerStats["Crit DMG"] || 0) - (bossStats["Crit RES"] || 0)) / 100);
+  const critMult = 1 + critDmgBonus; // minimum 1.3
+  const critRate = Math.min(1, Math.max(0, (playerStats["Crit Rate"] || 0) / 100));
+  const blockRate = Math.min(1, Math.max(0, (bossStats["Block Rate"] || 0) / 100));
+  const blockResist = Math.max(0.5, (bossStats["Block DMG Resist"] || 50) / 100); // minimum 50%
+  const accuracy = (playerStats["Accuracy"] || 0) / 100;
+  const effBlockRate = Math.max(0, blockRate - accuracy);
+  // Expected value: block chance × (1/block_mult) + no-block × [crit chance × crit_mult + no-crit × 1]
+  const blockMult = 1 / (1 + blockResist); // damage multiplier when blocked
+  const nonBlock = 1 - effBlockRate;
+  const zone5 = effBlockRate * blockMult + nonBlock * (critRate * critMult + (1 - critRate) * 1);
+
+  // Zone 6: Self damage reduction (usually 0 for offensive calc)
+  const zone6 = 1;
+
+  const total = Math.max(0, skillPanel * zone1 * zone2 * zone3 * zone4 * zone5 * zone6);
 
   return {
-    total, baseDmg, defMit, aff, critAvg, dmgBoost, pve, dmgRes, blockMod,
-    pct, flat, elem, effCritRate
+    total, skillPanel, hits, zone1, zone2, zone3, zone4, zone5, zone6,
+    z1_num, z1_den, z2_num, z2_den, z4_general, z4_special, z4_reduction,
+    critMult, critRate, effBlockRate, blockMult,
+    pct, flat, elem, atk, def
   };
 }
 
@@ -455,7 +485,7 @@ function handleImport() {
   try {
     const d = JSON.parse(atob(p));
     build.level = d.l || 1;
-    build.techniques = (d.t || []).map(s => s ? { id: s.i, rarity: s.r || "Legendary", star: s.s || 0 } : null);
+    build.techniques = (d.t || []).map(s => s ? { id: s.i, rarity: s.r || "Legendary", star: s.s || 0, hits: s.h || 1 } : null);
     build.charms = (d.ch || []).map(s => s ? { id: s.i, rarity: s.r || "Legendary", star: s.s || 0 } : null);
     while (build.techniques.length < 4) build.techniques.push(null);
     while (build.charms.length < 4) build.charms.push(null);
@@ -508,6 +538,7 @@ function slotHtml(type, i, slot) {
 
   const rarity = slot.rarity || sk.initial_rarity || "Legendary";
   const star = slot.star || 0;
+  const hits = slot.hits || 1;
   const maxStar = getMaxStar(rarity);
   const cd = sk.cooldown != null ? `CD ${sk.cooldown}` : "";
   const elem = sk.element || "";
@@ -515,7 +546,7 @@ function slotHtml(type, i, slot) {
   let dmgHtml = "";
   if (type === "technique") {
     const d = getSkillDmgAtLevel(sk, rarity, star, build.level);
-    if (d.pct || d.flat) dmgHtml = `<div class="slot-dmg">${d.pct}%+${fmtFlat(d.flat)}</div>`;
+    if (d.pct || d.flat) dmgHtml = `<div class="slot-dmg">${d.pct}%+${fmtFlat(d.flat)} ×${hits}hit</div>`;
   }
 
   return `<div class="slot">
@@ -532,6 +563,7 @@ function slotHtml(type, i, slot) {
       <select onchange="setSlot('${type}',${i},'star',parseInt(this.value))">
         ${Array.from({ length: maxStar + 1 }, (_, n) => `<option value="${n}" ${star === n ? "selected" : ""}>${n}\u2605</option>`).join("")}
       </select>
+      ${type === "technique" ? `<input type="number" min="1" max="20" value="${hits}" style="width:44px;background:var(--bg);border:1px solid var(--bdr2);color:var(--acc);border-radius:3px;font-size:11px;text-align:center;padding:2px;font-family:inherit" onchange="setSlot('${type}',${i},'hits',parseInt(this.value)||1)" title="Hit count (段数)">` : ""}
       ${dmgHtml}
     </div>
     <button class="slot-rm" onclick="clearSlot('${type}',${i})">\u00d7</button>
@@ -558,13 +590,14 @@ function renderPlayer() {
     <button class="btn sm" onclick="event.stopPropagation();savePlayer()" style="margin-left:8px">Save</button>
   </button>`;
   h += `<div class="section-body ${playerOpen ? "open" : ""}">`;
-  h += `<label class="upload-zone" id="player-up">📷 Upload stat screenshots (multiple ok)<input type="file" accept="image/*" multiple hidden onchange="onPlayerOCR(this.files)"></label>`;
+  h += `<label class="upload-zone" id="player-up">Upload stat screenshots<input type="file" accept="image/*" multiple hidden onchange="onPlayerOCR(this.files)"></label>`;
   if (playerOcrMsg) h += `<div class="ocr-status">${playerOcrMsg}</div>`;
   if (playerOcrRaw) h += `<details><summary style="color:var(--tx3);font-size:10px;cursor:pointer">raw OCR</summary><div class="ocr-raw">${playerOcrRaw}</div></details>`;
   for (const g of PLAYER_STATS) {
     h += `<div class="stat-group"><div class="stat-group-label">${g.group}</div><div class="statgrid">`;
     for (const s of g.keys) {
-      h += `<div class="field"><label>${s.k}</label><input value="${player[s.k] != null ? player[s.k] : ""}" oninput="player['${s.k}']=this.value===''?null:parseFloat(this.value)">${s.pct ? '<span class="pct-mark">%</span>' : ""}</div>`;
+      const tip = s.tip ? ` title="${s.tip}"` : "";
+      h += `<div class="field"${tip}><label>${s.k}</label><input value="${player[s.k] != null ? player[s.k] : ""}" oninput="player['${s.k}']=this.value===''?null:parseFloat(this.value)">${s.pct ? '<span class="pct-mark">%</span>' : ""}</div>`;
     }
     h += `</div></div>`;
   }
@@ -598,13 +631,14 @@ function renderBoss() {
   </button>`;
   h += `<div class="section-body ${bossOpen ? "open" : ""}">`;
   h += `<div class="field" style="margin-bottom:8px"><label>Boss Name</label><input value="${boss.name}" oninput="boss.name=this.value" style="width:160px;text-align:left"></div>`;
-  h += `<label class="upload-zone" id="boss-up">📷 Upload boss stat screenshots (multiple ok)<input type="file" accept="image/*" multiple hidden onchange="onBossOCR(this.files)"></label>`;
+  h += `<label class="upload-zone" id="boss-up">Upload boss stat screenshots<input type="file" accept="image/*" multiple hidden onchange="onBossOCR(this.files)"></label>`;
   if (bossOcrMsg) h += `<div class="ocr-status">${bossOcrMsg}</div>`;
   if (bossOcrRaw) h += `<details><summary style="color:var(--tx3);font-size:10px;cursor:pointer">raw OCR</summary><div class="ocr-raw">${bossOcrRaw}</div></details>`;
   for (const g of BOSS_STATS) {
     h += `<div class="stat-group"><div class="stat-group-label">${g.group}</div><div class="statgrid">`;
     for (const s of g.keys) {
-      h += `<div class="field"><label>${s.k}</label><input value="${boss.stats[s.k] != null ? boss.stats[s.k] : ""}" oninput="boss.stats['${s.k}']=this.value===''?null:parseFloat(this.value)">${s.pct ? '<span class="pct-mark">%</span>' : ""}</div>`;
+      const tip = s.tip ? ` title="${s.tip}"` : "";
+      h += `<div class="field"${tip}><label>${s.k}</label><input value="${boss.stats[s.k] != null ? boss.stats[s.k] : ""}" oninput="boss.stats['${s.k}']=this.value===''?null:parseFloat(this.value)">${s.pct ? '<span class="pct-mark">%</span>' : ""}</div>`;
     }
     h += `</div></div>`;
   }
@@ -691,7 +725,7 @@ function calculate() {
     h += `</div>`;
   }
 
-  // First-skill formula breakdown
+  // First-skill formula breakdown — shows all 6 zones
   if (sim.perSkill.length > 0) {
     const firstSlot = build.techniques.find(s => s && s.id);
     if (firstSlot) {
@@ -699,16 +733,14 @@ function calculate() {
       const chBuffs = computeCharmBuffs();
       const r = calcSkillDamage(sk, firstSlot, player, boss.stats, chBuffs);
       h += `<div class="formula-note">
-        <strong>Formula breakdown</strong> (${sk.name}, single cast):<br>
-        Base = ATK × ${r.pct}% + ${fmtFlat(r.flat)} = ${fmt(r.baseDmg)}<br>
-        × DEF mit ${(r.defMit * 100).toFixed(1)}%
-        × Affinity ${(r.aff * 100).toFixed(1)}%
-        × Crit avg ×${r.critAvg.toFixed(3)}
-        × DMG boost ×${r.dmgBoost.toFixed(3)}
-        × PvE ×${r.pve.toFixed(3)}
-        × DMG RES ×${r.dmgRes.toFixed(3)}
-        × Block ×${r.blockMod.toFixed(3)}<br>
-        = <strong>${fmt(r.total)}</strong> per cast
+        <strong>Formula (${sk.name}, 1 cast)</strong><br><br>
+        <strong>Skill Panel</strong> = (${fmt(r.atk)} ATK × ${r.pct}% + ${fmtFlat(r.flat)}) × ${firstSlot.hits || 1} hits = ${fmt(r.skillPanel)}<br><br>
+        <strong>Z1 DMG Boost</strong> = ${r.z1_num.toFixed(3)} / ${r.z1_den.toFixed(3)} = ×${r.zone1.toFixed(3)}<br>
+        <strong>Z2 Mastery</strong> = ${r.z2_num.toFixed(3)} / ${r.z2_den.toFixed(3)} = ×${r.zone2.toFixed(3)}<br>
+        <strong>Z3 DEF</strong> = ${fmt(r.atk)} / (${fmt(r.atk)}+${fmt(r.def)}) = ×${r.zone3.toFixed(4)}<br>
+        <strong>Z4 Skill DMG</strong> = (${r.z4_general.toFixed(2)} × ${r.z4_special.toFixed(2)}) / ${r.z4_reduction.toFixed(2)} = ×${r.zone4.toFixed(3)}<br>
+        <strong>Z5 Crit/Block</strong> = E[${(r.critRate*100).toFixed(0)}% crit ×${r.critMult.toFixed(2)}, ${(r.effBlockRate*100).toFixed(0)}% block ×${r.blockMult.toFixed(2)}] = ×${r.zone5.toFixed(3)}<br><br>
+        <strong>Total</strong> = ${fmt(r.skillPanel)} × ${r.zone1.toFixed(2)} × ${r.zone2.toFixed(2)} × ${r.zone3.toFixed(3)} × ${r.zone4.toFixed(2)} × ${r.zone5.toFixed(2)} = <strong>${fmt(r.total)}</strong>
       </div>`;
     }
   }
@@ -795,7 +827,7 @@ function pickSkill(id) {
   const sk = SKILL_MAP[id];
   if (!sk || !pickCtx) return;
   const slots = pickCtx.type === "technique" ? build.techniques : build.charms;
-  slots[pickCtx.slot] = { id, rarity: sk.initial_rarity || "Legendary", star: 0 };
+  slots[pickCtx.slot] = { id, rarity: sk.initial_rarity || "Legendary", star: 0, hits: 1 };
   saveBuild();
   closeModal();
   renderBuild();
