@@ -207,6 +207,13 @@ function getSkillDmg(skill, rarity) {
 }
 
 function getSkillDmgAtLevel(skill, rarity, star, level) {
+  const groups = getAllHitGroups(skill, rarity, star, level);
+  return groups.length ? groups[0] : { pct: 0, flat: 0 };
+}
+
+// Returns ALL hit groups from a skill — each SkillAttack1-4 that has a value
+function getAllHitGroups(skill, rarity, star, level) {
+  const groups = [];
   if (CURVES && skill.entity_values) {
     const ev = skill.entity_values;
     const rc = RCODE[rarity] || "SSR";
@@ -235,11 +242,29 @@ function getSkillDmgAtLevel(skill, rarity, star, level) {
         const pct = pb && ps ? (pb * ps) / 1e6 : 0;
         const fb = Number(ev[paired] || 0), fr = Number(rr[paired] || 0), fl = Number(lr[paired] || 0);
         const flat = fl && fb && fr ? (fl * fb * fr) / 1e8 : 0;
-        if (pct || flat) return { pct: Math.round(pct * 10) / 10, flat: Math.round(flat) };
+        if (pct || flat) groups.push({ pct: Math.round(pct * 10) / 10, flat: Math.round(flat), key: f });
       }
     }
   }
-  return getSkillDmg(skill, rarity);
+  // Fallback: stats_by_rarity
+  if (!groups.length) {
+    const sbr = skill.stats_by_rarity;
+    if (sbr && sbr[rarity]) {
+      const st = sbr[rarity];
+      for (const k of ["SkillAttack1", "SkillAttack2", "SkillAttack3", "SkillAttack4"]) {
+        if (st[k] && typeof st[k] === "object" && (st[k].pct || st[k].flat)) {
+          groups.push({ pct: st[k].pct || 0, flat: st[k].flat || 0, key: k });
+        }
+      }
+    }
+  }
+  // Fallback: damage array
+  if (!groups.length && skill.damage && skill.damage.length) {
+    const RIDX = { Rare: 1, Epic: 4, Legendary: 8, Mythic: 14, Divine: 22, Immortal: 33 };
+    const v = skill.damage[RIDX[rarity]];
+    if (v != null) groups.push({ pct: v, flat: 0, key: "SkillAttack1" });
+  }
+  return groups;
 }
 
 function getMaxStar(rarity) {
@@ -308,12 +333,21 @@ function calcSkillDamage(skill, slotCfg, playerStats, bossStats, charmBuffs) {
   const def = bossStats.DEF || 0;
   const rarity = slotCfg.rarity || "Legendary";
   const star = slotCfg.star || 0;
-  const hits = slotCfg.hits || 1;
-  const { pct, flat } = getSkillDmgAtLevel(skill, rarity, star, build.level);
   const elem = skill.element || "Physical";
 
-  // Skill Panel = (ATK × coefficient + flat) × hit count
-  const skillPanel = (atk * (pct / 100) + flat) * hits;
+  // Get ALL hit groups (SkillAttack1, SkillAttack2, etc.)
+  const hitGroups = getAllHitGroups(skill, rarity, star, build.level);
+  const hitsArr = slotCfg.hits || [1]; // array of hit counts per group
+
+  // Skill Panel = sum of (ATK × coeff% + flat) × hits for each group
+  let skillPanel = 0;
+  const groupDetails = [];
+  hitGroups.forEach((g, i) => {
+    const h = hitsArr[i] || (i === 0 ? 1 : 0); // default: 1 for first group, 0 for others (user sets)
+    const groupDmg = (atk * (g.pct / 100) + g.flat) * h;
+    skillPanel += groupDmg;
+    groupDetails.push({ pct: g.pct, flat: g.flat, hits: h, dmg: groupDmg, key: g.key });
+  });
 
   // Zone 1: DMG Boost / DMG RES
   // (1 + 伤害加成 + PvE增伤) / (1 + 伤害抵抗 + PvE抵抗)
@@ -361,10 +395,10 @@ function calcSkillDamage(skill, slotCfg, playerStats, bossStats, charmBuffs) {
   const total = Math.max(0, skillPanel * zone1 * zone2 * zone3 * zone4 * zone5 * zone6);
 
   return {
-    total, skillPanel, hits, zone1, zone2, zone3, zone4, zone5, zone6,
+    total, skillPanel, groupDetails, zone1, zone2, zone3, zone4, zone5, zone6,
     z1_num, z1_den, z2_num, z2_den, z4_general, z4_special, z4_reduction,
     critMult, critRate, effBlockRate, blockMult,
-    pct, flat, elem, atk, def
+    elem, atk, def
   };
 }
 
@@ -445,6 +479,10 @@ function loadBuild() {
       build.charms = (d.charms || [null, null, null, null]).slice(0, 4);
       while (build.techniques.length < 4) build.techniques.push(null);
       while (build.charms.length < 4) build.charms.push(null);
+      // Migrate old hits format (number → array)
+      build.techniques.forEach(s => {
+        if (s && s.hits != null && !Array.isArray(s.hits)) s.hits = [s.hits];
+      });
     }
   } catch (e) {}
 }
@@ -485,7 +523,7 @@ function handleImport() {
   try {
     const d = JSON.parse(atob(p));
     build.level = d.l || 1;
-    build.techniques = (d.t || []).map(s => s ? { id: s.i, rarity: s.r || "Legendary", star: s.s || 0, hits: s.h || 1 } : null);
+    build.techniques = (d.t || []).map(s => s ? { id: s.i, rarity: s.r || "Legendary", star: s.s || 0, hits: Array.isArray(s.h) ? s.h : [s.h || 1] } : null);
     build.charms = (d.ch || []).map(s => s ? { id: s.i, rarity: s.r || "Legendary", star: s.s || 0 } : null);
     while (build.techniques.length < 4) build.techniques.push(null);
     while (build.charms.length < 4) build.charms.push(null);
@@ -538,15 +576,30 @@ function slotHtml(type, i, slot) {
 
   const rarity = slot.rarity || sk.initial_rarity || "Legendary";
   const star = slot.star || 0;
-  const hits = slot.hits || 1;
   const maxStar = getMaxStar(rarity);
   const cd = sk.cooldown != null ? `CD ${sk.cooldown}` : "";
   const elem = sk.element || "";
 
+  // Get all hit groups for this skill
+  const hitGroups = type === "technique" ? getAllHitGroups(sk, rarity, star, build.level) : [];
+  const hitsArr = slot.hits || [1];
+  // Ensure hits array matches group count
+  while (hitsArr.length < hitGroups.length) hitsArr.push(0);
+
   let dmgHtml = "";
-  if (type === "technique") {
-    const d = getSkillDmgAtLevel(sk, rarity, star, build.level);
-    if (d.pct || d.flat) dmgHtml = `<div class="slot-dmg">${d.pct}%+${fmtFlat(d.flat)} ×${hits}hit</div>`;
+  if (type === "technique" && hitGroups.length) {
+    dmgHtml = `<div style="display:flex;flex-direction:column;gap:1px;margin-top:2px">`;
+    hitGroups.forEach((g, gi) => {
+      const h = hitsArr[gi] || 0;
+      dmgHtml += `<div style="display:flex;align-items:center;gap:3px;font-size:10px">
+        <span style="color:var(--tx3)">${g.pct}%+${fmtFlat(g.flat)}</span>
+        <span style="color:var(--tx3)">×</span>
+        <input type="number" min="0" max="20" value="${h}"
+          style="width:30px;background:var(--bg);border:1px solid var(--bdr2);color:var(--acc);border-radius:3px;font-size:10px;text-align:center;padding:1px;font-family:inherit"
+          onchange="setSlotHits('${type}',${i},${gi},parseInt(this.value)||0)" title="Hits for group ${gi + 1}">
+      </div>`;
+    });
+    dmgHtml += `</div>`;
   }
 
   return `<div class="slot">
@@ -563,11 +616,19 @@ function slotHtml(type, i, slot) {
       <select onchange="setSlot('${type}',${i},'star',parseInt(this.value))">
         ${Array.from({ length: maxStar + 1 }, (_, n) => `<option value="${n}" ${star === n ? "selected" : ""}>${n}\u2605</option>`).join("")}
       </select>
-      ${type === "technique" ? `<input type="number" min="1" max="20" value="${hits}" style="width:44px;background:var(--bg);border:1px solid var(--bdr2);color:var(--acc);border-radius:3px;font-size:11px;text-align:center;padding:2px;font-family:inherit" onchange="setSlot('${type}',${i},'hits',parseInt(this.value)||1)" title="Hit count (段数)">` : ""}
       ${dmgHtml}
     </div>
     <button class="slot-rm" onclick="clearSlot('${type}',${i})">\u00d7</button>
   </div>`;
+}
+
+function setSlotHits(type, slotIdx, groupIdx, val) {
+  const slots = type === "technique" ? build.techniques : build.charms;
+  if (!slots[slotIdx]) return;
+  if (!slots[slotIdx].hits) slots[slotIdx].hits = [1];
+  while (slots[slotIdx].hits.length <= groupIdx) slots[slotIdx].hits.push(0);
+  slots[slotIdx].hits[groupIdx] = val;
+  saveBuild(); renderBuild();
 }
 
 function setSlot(type, i, prop, val) {
@@ -732,9 +793,10 @@ function calculate() {
       const sk = SKILL_MAP[firstSlot.id];
       const chBuffs = computeCharmBuffs();
       const r = calcSkillDamage(sk, firstSlot, player, boss.stats, chBuffs);
+      const groupLines = r.groupDetails.map(g => `${g.pct}%+${fmtFlat(g.flat)} ×${g.hits} = ${fmt(g.dmg)}`).join(' + ');
       h += `<div class="formula-note">
         <strong>Formula (${sk.name}, 1 cast)</strong><br><br>
-        <strong>Skill Panel</strong> = (${fmt(r.atk)} ATK × ${r.pct}% + ${fmtFlat(r.flat)}) × ${firstSlot.hits || 1} hits = ${fmt(r.skillPanel)}<br><br>
+        <strong>Skill Panel</strong> = ${groupLines} = ${fmt(r.skillPanel)}<br><br>
         <strong>Z1 DMG Boost</strong> = ${r.z1_num.toFixed(3)} / ${r.z1_den.toFixed(3)} = ×${r.zone1.toFixed(3)}<br>
         <strong>Z2 Mastery</strong> = ${r.z2_num.toFixed(3)} / ${r.z2_den.toFixed(3)} = ×${r.zone2.toFixed(3)}<br>
         <strong>Z3 DEF</strong> = ${fmt(r.atk)} / (${fmt(r.atk)}+${fmt(r.def)}) = ×${r.zone3.toFixed(4)}<br>
@@ -827,7 +889,10 @@ function pickSkill(id) {
   const sk = SKILL_MAP[id];
   if (!sk || !pickCtx) return;
   const slots = pickCtx.type === "technique" ? build.techniques : build.charms;
-  slots[pickCtx.slot] = { id, rarity: sk.initial_rarity || "Legendary", star: 0, hits: 1 };
+  const initRarity = sk.initial_rarity || "Legendary";
+  const hitGroups = getAllHitGroups(sk, initRarity, 0, build.level);
+  const defaultHits = hitGroups.map((_, i) => i === 0 ? 1 : 0); // first group=1, rest=0 (user sets from description)
+  slots[pickCtx.slot] = { id, rarity: initRarity, star: 0, hits: defaultHits };
   saveBuild();
   closeModal();
   renderBuild();
