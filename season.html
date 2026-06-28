@@ -302,18 +302,70 @@ async function onOCR(files){
     const result=await Tesseract.recognize(canvas,'eng',{
       logger:m=>{if(m.status==='recognizing text')status.textContent='Recognizing… '+Math.round(m.progress*100)+'%'}
     });
-    const text=result.data.text;console.log('OCR text:',text);
-    status.textContent='Parsing…';let filled=[];
-    const pats=[
-      {field:'sCharLv',rx:/Character\s*Level\s*[\n\r]*\s*(\d+)/i,label:'Character'},
-      {field:'sGearLv',rx:/Gear\s*Level\s*[\n\r]*\s*(\d+)/i,label:'Gear'},
-      {field:'sSkillLv',rx:/Skill\s*Level\s*[\n\r]*\s*(\d+)/i,label:'Skill'},
-      {field:'sFantoLv',rx:/Fantomon\s*Level\s*[\n\r]*\s*(\d+)/i,label:'Fantomon'},
-      {field:'sRelicLv',rx:/Relic\s*Level\s*[\n\r]*\s*(\d+)/i,label:'Relic'},
+    const text=result.data.text;
+    const words=result.data.words||[];
+    console.log('OCR text:',text);
+    console.log('OCR words:',words.length);
+    status.textContent='Parsing…';
+    let filled=[];
+
+    // Spatial matching: find label keywords, then find the closest number below each
+    const labelMap=[
+      {key:'character',field:'sCharLv',label:'Character'},
+      {key:'gear',field:'sGearLv',label:'Gear'},
+      {key:'skill',field:'sSkillLv',label:'Skill'},
+      {key:'fantomon',field:'sFantoLv',label:'Fantomon'},
+      {key:'relic',field:'sRelicLv',label:'Relic'},
     ];
-    for(const p of pats){const m=text.match(p.rx);if(m){$(p.field).value=m[1];filled.push(p.label+': '+m[1])}}
+
+    // Collect label positions (center-x of the keyword, bottom-y)
+    const labelPos={};
+    for(const w of words){
+      const t=w.text.toLowerCase().replace(/[^a-z]/g,'');
+      for(const lm of labelMap){
+        if(t===lm.key && !labelPos[lm.key]){
+          labelPos[lm.key]={x:(w.bbox.x0+w.bbox.x1)/2, y:w.bbox.y1, field:lm.field, label:lm.label};
+        }
+      }
+    }
+
+    // Collect all number words (excluding "pts" — check if next word is "pts")
+    const numWords=[];
+    for(let i=0;i<words.length;i++){
+      const w=words[i];
+      if(!/^\d+$/.test(w.text))continue;
+      // Skip if this number is followed by "pts"
+      const nextW=words[i+1];
+      if(nextW && /^pts?$/i.test(nextW.text.replace(/[^a-z]/gi,'')))continue;
+      numWords.push({val:parseInt(w.text),x:(w.bbox.x0+w.bbox.x1)/2,y:(w.bbox.y0+w.bbox.y1)/2,idx:i});
+    }
+
+    // For each label, find the nearest number that is below it
+    const used=new Set();
+    for(const lm of labelMap){
+      const pos=labelPos[lm.key];
+      if(!pos)continue;
+      let best=null,bestDist=Infinity;
+      for(const n of numWords){
+        if(used.has(n.idx))continue;
+        if(n.y<=pos.y)continue; // must be below the label
+        // Distance: weight horizontal distance more to penalize cross-column matches
+        const dx=Math.abs(n.x-pos.x);
+        const dy=n.y-pos.y;
+        const dist=dx*2+dy; // horizontal mismatch costs double
+        if(dist<bestDist){bestDist=dist;best=n}
+      }
+      if(best){
+        $(pos.field).value=best.val;
+        filled.push(pos.label+': '+best.val);
+        used.add(best.idx);
+      }
+    }
+
+    // Also try text-based fallback for time remaining
     const tm=text.match(/(?:Ends?\s*in|Claimable\s*in)\s*(\d+)\s*d\s*(\d+)\s*h/i);
     if(tm){$('daysLeft').value=tm[1];$('hrsLeft').value=tm[2];filled.push('Time: '+tm[1]+'d '+tm[2]+'h')}
+
     if(filled.length>0){status.textContent='Filled: '+filled.join(', ');status.style.color='#6ec77a';if(dataReady)calc()}
     else{status.textContent='Could not parse. Try a clearer screenshot of the Progression tab.';status.style.color='var(--bad,#e05252)'}
   }catch(e){console.error('OCR error:',e);status.textContent='OCR failed: '+e.message;status.style.color='var(--bad,#e05252)'}
