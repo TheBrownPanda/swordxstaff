@@ -6,18 +6,24 @@
 <title>Season Planner – Sword × Staff</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
+.ocr-zone{border:2px dashed var(--bdr);border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:all .15s;margin-bottom:14px}
+.ocr-zone:hover{border-color:var(--bdr-accent);background:rgba(212,164,58,.03)}
+.ocr-zone.processing{border-color:var(--acc);opacity:.7;pointer-events:none}
+.ocr-zone input[type=file]{display:none}
+.ocr-zone .oz-icon{font-size:20px;margin-bottom:4px}
+.ocr-zone .oz-text{font-size:12px;color:var(--tx3)}.ocr-zone .oz-text strong{color:var(--tx2)}
+.ocr-status{font-size:11px;color:var(--acc);margin-top:6px;min-height:16px}
 .sp-section{background:var(--card);border:1px solid var(--bdr);border-radius:10px;padding:16px;margin-bottom:14px}
 .sp-section h3{font-size:12px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.05)}
 .sp-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.sp-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-@media(max-width:520px){.sp-grid,.sp-grid-3{grid-template-columns:1fr}}
+@media(max-width:520px){.sp-grid{grid-template-columns:1fr}}
 .sp-field label{display:block;font-size:11px;font-weight:500;color:var(--tx3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.03em}
 .sp-field label .u{text-transform:none;letter-spacing:0;font-weight:400}
 .sp-field input,.sp-field select{width:100%;padding:7px 10px;border-radius:3px;border:1px solid var(--bdr);background:rgba(0,0,0,.25);color:var(--tx);font-family:'Outfit',sans-serif;font-size:14px;font-weight:500}
 .sp-field input:focus,.sp-field select:focus{outline:none;border-color:var(--bdr-accent);background:rgba(0,0,0,.35)}
-.sp-field select{cursor:pointer}
-.sp-field select option{background:#1a1a1f;color:var(--tx)}
+.sp-field select{cursor:pointer}.sp-field select option{background:#1a1a1f;color:var(--tx)}
 .sp-field .sub{font-size:10px;color:var(--tx3);margin-top:3px}
 .sp-field .pts{text-align:right;font-size:12px;color:var(--acc);margin-top:3px;font-weight:500}
 .season-picker{display:flex;gap:6px;margin-bottom:14px}
@@ -34,8 +40,7 @@
 .star-hero .sc{font-size:44px;font-weight:700;color:var(--acc);line-height:1}
 .star-hero .sl{font-size:11px;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
 .rr{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:13px}
-.rr:last-child{border-bottom:none}
-.rr .rl{color:var(--tx2)}.rr .rv{color:var(--tx);font-weight:500}
+.rr:last-child{border-bottom:none}.rr .rl{color:var(--tx2)}.rr .rv{color:var(--tx);font-weight:500}
 .rr .rv.good{color:#6ec77a}.rr .rv.bad{color:var(--bad,#e05252)}.rr .rv.acc{color:var(--acc)}
 .oc{background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.05);border-radius:8px;padding:14px;margin-top:12px}
 .oc h4{font-size:11px;font-weight:600;color:var(--acc);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
@@ -49,35 +54,23 @@
 .mi-bar{background:rgba(255,255,255,.04);border-radius:4px;height:8px;margin-bottom:12px;overflow:hidden}
 .mi-fill{height:100%;border-radius:4px;background:var(--acc);transition:width .4s ease}
 .mi{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:12px;border-bottom:1px solid rgba(255,255,255,.03)}
-.mi:last-child{border-bottom:none}
-.mi .ms{color:var(--tx3);min-width:42px}.mi .mr{color:var(--tx2);flex:1}
+.mi:last-child{border-bottom:none}.mi .ms{color:var(--tx3);min-width:42px}.mi .mr{color:var(--tx2);flex:1}
 .mi .mt{font-size:11px;font-weight:500;padding:2px 8px;border-radius:3px}
 .mi .done{color:#6ec77a;background:rgba(110,199,122,.1)}
-.mi .next{color:var(--acc);background:var(--acc-soft)}
-.mi .far{color:var(--tx3)}
+.mi .next{color:var(--acc);background:var(--acc-soft)}.mi .far{color:var(--tx3)}
 .mi.tgt{background:rgba(212,164,58,.06);border-radius:4px;padding:5px 6px}
 .info-blk{background:rgba(212,164,58,.05);border:1px solid rgba(212,164,58,.12);border-radius:8px;padding:12px;font-size:12px;color:var(--tx2);line-height:1.6;margin-bottom:14px}
 .info-blk strong{color:var(--acc);font-weight:600}
 .adv-toggle{background:none;border:none;color:var(--tx3);font-size:11px;cursor:pointer;font-family:'Outfit',sans-serif;padding:0;text-transform:uppercase;letter-spacing:.04em}
 .adv-toggle:hover{color:var(--tx2)}
-.adv-body{max-height:0;overflow:hidden;transition:max-height .25s ease}
-.adv-body.open{max-height:600px}
-.mode-tabs{display:flex;gap:0;margin-bottom:14px;border:1px solid var(--bdr);border-radius:6px;overflow:hidden}
-.mode-tabs button{flex:1;padding:8px 0;border:none;background:rgba(255,255,255,.03);color:var(--tx3);font-family:'Outfit',sans-serif;font-size:12px;font-weight:500;cursor:pointer;text-transform:uppercase;letter-spacing:.04em;border-right:1px solid var(--bdr)}
-.mode-tabs button:last-child{border-right:none}
-.mode-tabs button.active{background:var(--acc-soft);color:var(--acc)}
-.mode-tabs button:hover:not(.active){color:var(--tx2)}
+.adv-body{max-height:0;overflow:hidden;transition:max-height .25s ease}.adv-body.open{max-height:600px}
 </style>
 </head>
 <body>
-<div class="header">
-  <div class="header-inner">
-    <div>
-      <div class="logo">Sword <b>×</b> Staff</div>
-      <div class="logo-sub">Season Planner</div>
-    </div>
-  </div>
-</div>
+<div class="header"><div class="header-inner"><div>
+  <div class="logo">Sword <b>×</b> Staff</div>
+  <div class="logo-sub">Season Planner</div>
+</div></div></div>
 <div class="container">
   <div class="page-nav" style="display:flex;gap:6px;margin-bottom:16px;">
     <a href="index.html">Build</a>
@@ -86,53 +79,41 @@
     <a href="season.html" class="active">Season</a>
   </div>
 
-  <div class="season-picker" id="sPick">
-    <button class="active" data-s="1">S1</button>
-    <button data-s="2">S2</button>
-    <button data-s="3">S3</button>
-    <button data-s="4">S4</button>
+  <div id="loadMsg" style="text-align:center;padding:60px 20px;color:var(--tx3)">
+    <div style="font-size:24px;margin-bottom:8px">✦</div>
+    <div style="font-size:13px">Loading season data…</div>
   </div>
 
-  <!-- ═══ CURRENT SEASON SCORE ═══ -->
+  <div id="mainContent" style="display:none">
+  <div class="season-picker" id="sPick"></div>
+
+  <!-- CURRENT SEASON SCORE -->
   <div class="sp-section">
-    <h3>Current Season Score <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;color:var(--tx3)">— enter the green numbers from the in-game Progression screen</span></h3>
+    <h3>Current Season Score <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;color:var(--tx3)">— enter the green numbers or upload a screenshot</span></h3>
+    <label class="ocr-zone" id="ocrZone">
+      <input type="file" accept="image/*" onchange="onOCR(this.files)">
+      <div class="oz-icon">📷</div>
+      <div class="oz-text"><strong>Upload season screenshot</strong> to auto-fill values</div>
+      <div class="ocr-status" id="ocrStatus"></div>
+    </label>
     <div class="sp-grid">
-      <div class="sp-field">
-        <label>Season Character Level</label>
-        <input type="number" id="sCharLv" value="27" min="0" step="1">
-        <div class="pts" id="charPts">2,700 pts</div>
-      </div>
-      <div class="sp-field">
-        <label>Season Skill Level <span class="u">(total)</span></label>
-        <input type="number" id="sSkillLv" value="216" min="0" step="1">
-        <div class="pts" id="skillPts">2,808 pts</div>
-      </div>
-      <div class="sp-field">
-        <label>Season Fantomon Level <span class="u">(total)</span></label>
-        <input type="number" id="sFantoLv" value="120" min="0" step="1">
-        <div class="pts" id="fantoPts">1,680 pts</div>
-      </div>
-      <div class="sp-field">
-        <label>Season Relic Level <span class="u">(total)</span></label>
-        <input type="number" id="sRelicLv" value="60" min="0" step="1">
-        <div class="pts" id="relicPts">3,420 pts</div>
-      </div>
+      <div class="sp-field"><label>Season Character Level</label><input type="number" id="sCharLv" value="0" min="0" step="1"><div class="pts" id="charPts">0 pts</div></div>
+      <div class="sp-field"><label>Season Skill Level <span class="u">(total)</span></label><input type="number" id="sSkillLv" value="0" min="0" step="1"><div class="pts" id="skillPts">0 pts</div></div>
+      <div class="sp-field"><label>Season Fantomon Level <span class="u">(total)</span></label><input type="number" id="sFantoLv" value="0" min="0" step="1"><div class="pts" id="fantoPts">0 pts</div></div>
+      <div class="sp-field"><label>Season Relic Level <span class="u">(total)</span></label><input type="number" id="sRelicLv" value="0" min="0" step="1"><div class="pts" id="relicPts">0 pts</div></div>
     </div>
     <div style="margin-top:12px">
-      <label style="font-size:11px;font-weight:500;color:var(--tx3);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:4px;">Season Gear Level <span style="text-transform:none;letter-spacing:0;font-weight:400">(total across 5 slots — or enter per-slot below)</span></label>
-      <input type="number" id="sGearLv" value="282" min="0" step="1" style="width:100%;padding:7px 10px;border-radius:3px;border:1px solid var(--bdr);background:rgba(0,0,0,.25);color:var(--tx);font-family:'Outfit',sans-serif;font-size:14px;font-weight:500">
-      <div style="text-align:right;font-size:12px;color:var(--acc);margin-top:3px;font-weight:500" id="gearPts">10,716 pts</div>
+      <label style="font-size:11px;font-weight:500;color:var(--tx3);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:4px;">Season Gear Level <span style="text-transform:none;letter-spacing:0;font-weight:400">(total across 5 slots)</span></label>
+      <input type="number" id="sGearLv" value="0" min="0" step="1" style="width:100%;padding:7px 10px;border-radius:3px;border:1px solid var(--bdr);background:rgba(0,0,0,.25);color:var(--tx);font-family:'Outfit',sans-serif;font-size:14px;font-weight:500">
+      <div style="text-align:right;font-size:12px;color:var(--acc);margin-top:3px;font-weight:500" id="gearPts">0 pts</div>
     </div>
     <div class="sp-grid" style="margin-top:10px">
-      <div class="sp-field">
-        <label>Historical Primostars <span class="u">(prior seasons)</span></label>
-        <input type="number" id="histStars" value="0" min="0" step="1">
-      </div>
+      <div class="sp-field"><label>Historical Primostars <span class="u">(prior seasons)</span></label><input type="number" id="histStars" value="0" min="0" step="1"></div>
     </div>
   </div>
 
-  <!-- ═══ RESULTS ═══ -->
-  <div class="sp-section" id="resSection">
+  <!-- RESULTS -->
+  <div class="sp-section">
     <div class="star-hero">
       <div class="si">✦</div>
       <div class="sc" id="totalStars">0</div>
@@ -143,163 +124,88 @@
     <div class="rr"><span class="rl">Historical Stars</span><span class="rv" id="histOut">0</span></div>
   </div>
 
-  <!-- ═══ TARGET & PLANNER ═══ -->
+  <!-- TARGET -->
   <div class="sp-section">
     <h3>Target & Planner</h3>
-    <div class="sp-field">
-      <label>Target Astral Pact Milestone</label>
-      <select id="targetSel"></select>
-    </div>
-    <div class="sp-field" style="margin-top:8px">
-      <label>Or manual target <span class="u">(stars)</span></label>
-      <input type="number" id="targetMan" value="" min="1" step="1" placeholder="Leave blank to use dropdown">
-    </div>
+    <div class="sp-field"><label>Target Astral Pact Milestone</label><select id="targetSel"></select></div>
+    <div class="sp-field" style="margin-top:8px"><label>Or manual target <span class="u">(stars)</span></label><input type="number" id="targetMan" value="" min="1" step="1" placeholder="Leave blank to use dropdown"></div>
     <div class="rr" style="margin-top:10px"><span class="rl">Target score needed</span><span class="rv acc" id="targetScoreOut">—</span></div>
     <div class="rr"><span class="rl">Gap from current</span><span class="rv" id="gapOut">—</span></div>
   </div>
 
-  <!-- ═══ OPTIMIZER INPUTS ═══ -->
+  <!-- PLANNER INPUTS -->
   <div class="sp-section">
     <h3>Planner Inputs <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px;color:var(--tx3)">— for projecting where you'll end up</span></h3>
     <div class="sp-grid">
-      <div class="sp-field">
-        <label>Actual character level</label>
-        <input type="number" id="actCharLv" value="127" min="100" step="1">
-        <div class="sub">Used for EXP projection + skill cap</div>
-      </div>
-      <div class="sp-field">
-        <label>Current EXP in level</label>
-        <input type="number" id="curExp" value="0" min="0" step="10000">
-      </div>
-      <div class="sp-field">
-        <label>Bed EXP / hour</label>
-        <input type="number" id="expHr" value="76000" min="0" step="1000">
-      </div>
-      <div class="sp-field">
-        <label>Skill slots <span class="u">(equipped)</span></label>
-        <input type="number" id="skillSlots" value="8" min="1" max="12" step="1">
-        <div class="sub">How many skills contribute to season total</div>
-      </div>
+      <div class="sp-field"><label>Actual character level</label><input type="number" id="actCharLv" value="100" min="100" step="1"><div class="sub">Used for EXP projection + skill cap</div></div>
+      <div class="sp-field"><label>Current EXP in level</label><input type="number" id="curExp" value="0" min="0" step="10000"></div>
+      <div class="sp-field"><label>Bed EXP / hour</label><input type="number" id="expHr" value="76000" min="0" step="1000"></div>
+      <div class="sp-field"><label>Skill slots <span class="u">(equipped)</span></label><input type="number" id="skillSlots" value="8" min="1" max="12" step="1"><div class="sub">How many skills contribute to season total</div></div>
     </div>
     <div class="sp-grid" style="margin-top:10px">
-      <div class="sp-field">
-        <label>Days remaining</label>
-        <input type="number" id="daysLeft" value="6" min="0" step="1">
-      </div>
-      <div class="sp-field">
-        <label>Extra hours</label>
-        <input type="number" id="hrsLeft" value="6" min="0" max="23" step="1">
-      </div>
-      <div class="sp-field">
-        <label>Daily free accel <span class="u">(hrs)</span></label>
-        <input type="number" id="accelHrs" value="2" min="0" step="1">
-      </div>
-      <div class="sp-field">
-        <label>Save last N hours</label>
-        <input type="number" id="saveHrs" value="36" min="0" step="1">
-        <div class="sub">Stop bed EXP to bank for next season</div>
-      </div>
+      <div class="sp-field"><label>Days remaining</label><input type="number" id="daysLeft" value="0" min="0" step="1"></div>
+      <div class="sp-field"><label>Extra hours</label><input type="number" id="hrsLeft" value="0" min="0" max="23" step="1"></div>
+      <div class="sp-field"><label>Daily free accel <span class="u">(hrs)</span></label><input type="number" id="accelHrs" value="2" min="0" step="1"></div>
+      <div class="sp-field"><label>Save last N hours</label><input type="number" id="saveHrs" value="36" min="0" step="1"><div class="sub">Stop bed EXP to bank for next season</div></div>
     </div>
     <div style="margin-top:12px">
-      <label style="font-size:11px;font-weight:500;color:var(--tx3);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:4px;">Projected Fantomon / Relic Season Levels <span style="text-transform:none;letter-spacing:0;font-weight:400">(your best estimate at season end)</span></label>
+      <label style="font-size:11px;font-weight:500;color:var(--tx3);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:4px;">Projected end-of-season levels <span style="text-transform:none;letter-spacing:0;font-weight:400">(your best estimate)</span></label>
       <div class="sp-grid">
-        <div class="sp-field">
-          <label>Projected fanto season lv</label>
-          <input type="number" id="projFanto" value="120" min="0" step="1">
-        </div>
-        <div class="sp-field">
-          <label>Projected relic season lv</label>
-          <input type="number" id="projRelic" value="60" min="0" step="1">
-        </div>
+        <div class="sp-field"><label>Projected fanto season lv</label><input type="number" id="projFanto" value="0" min="0" step="1"></div>
+        <div class="sp-field"><label>Projected relic season lv</label><input type="number" id="projRelic" value="0" min="0" step="1"></div>
       </div>
     </div>
   </div>
 
-  <!-- ═══ ORE ECONOMY ═══ -->
+  <!-- ORE ECONOMY -->
   <div class="sp-section">
     <h3>Raw Ore Economy</h3>
     <div style="margin-bottom:10px">
       <label style="font-size:11px;font-weight:500;color:var(--tx3);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:4px;">Current gear <span style="text-transform:none;letter-spacing:0;font-weight:400">(actual levels per slot, for ore cost calculation)</span></label>
       <div class="gear-labels"><span>Wpn</span><span>Off</span><span>Helm</span><span>Armor</span><span>Boots</span></div>
       <div class="gear-row">
-        <input type="number" id="g0" value="156" min="100" step="1">
-        <input type="number" id="g1" value="156" min="100" step="1">
-        <input type="number" id="g2" value="156" min="100" step="1">
-        <input type="number" id="g3" value="157" min="100" step="1">
-        <input type="number" id="g4" value="157" min="100" step="1">
+        <input type="number" id="g0" value="100" min="100" step="1">
+        <input type="number" id="g1" value="100" min="100" step="1">
+        <input type="number" id="g2" value="100" min="100" step="1">
+        <input type="number" id="g3" value="100" min="100" step="1">
+        <input type="number" id="g4" value="100" min="100" step="1">
       </div>
     </div>
     <div class="sp-grid">
-      <div class="sp-field">
-        <label>Cart ore / hour</label>
-        <input type="number" id="cartHr" value="120" min="0" step="10">
-      </div>
-      <div class="sp-field">
-        <label>Current ore stockpile</label>
-        <input type="number" id="curOre" value="0" min="0" step="1000">
-      </div>
-      <div class="sp-field">
-        <label>Mining yield / dig</label>
-        <input type="number" id="mineYield" value="600" min="0" step="50">
-      </div>
-      <div class="sp-field">
-        <label>Digs / day <span class="u">(stamina)</span></label>
-        <input type="number" id="digsDay" value="3" min="0" step="1">
-      </div>
-      <div class="sp-field">
-        <label>Hammer yield / hammer</label>
-        <input type="number" id="hamYield" value="610" min="0" step="10">
-      </div>
-      <div class="sp-field">
-        <label>Owned hammers</label>
-        <input type="number" id="hamOwn" value="0" min="0" step="1">
-      </div>
+      <div class="sp-field"><label>Cart ore / hour</label><input type="number" id="cartHr" value="120" min="0" step="10"></div>
+      <div class="sp-field"><label>Current ore stockpile</label><input type="number" id="curOre" value="0" min="0" step="1000"></div>
+      <div class="sp-field"><label>Mining yield / dig</label><input type="number" id="mineYield" value="600" min="0" step="50"></div>
+      <div class="sp-field"><label>Digs / day <span class="u">(stamina)</span></label><input type="number" id="digsDay" value="3" min="0" step="1"></div>
+      <div class="sp-field"><label>Hammer yield / hammer</label><input type="number" id="hamYield" value="610" min="0" step="10"></div>
+      <div class="sp-field"><label>Owned hammers</label><input type="number" id="hamOwn" value="0" min="0" step="1"></div>
     </div>
     <div style="margin-top:10px">
       <button class="adv-toggle" onclick="toggleAdv()">▸ Advanced formula constants</button>
       <div class="adv-body" id="advBody">
         <div class="sp-grid" style="margin-top:10px">
-          <div class="sp-field">
-            <label>EXP base <span class="u">(lv 100→101)</span></label>
-            <input type="number" id="expBase" value="730000" step="10000">
-          </div>
-          <div class="sp-field">
-            <label>EXP increase / level</label>
-            <input type="number" id="expInc" value="50000" step="1000">
-          </div>
-          <div class="sp-field">
-            <label>Ore cost <span class="u">(to lv 101)</span></label>
-            <input type="number" id="oreBase" value="9300" step="100">
-          </div>
-          <div class="sp-field">
-            <label>Ore increase / gear lv</label>
-            <input type="number" id="oreInc" value="90" step="10">
-          </div>
+          <div class="sp-field"><label>EXP base <span class="u">(season lv 0→1)</span></label><input type="number" id="expBase" value="" step="10000" placeholder="Unknown"></div>
+          <div class="sp-field"><label>EXP increase / season lv</label><input type="number" id="expInc" value="" step="1000" placeholder="Unknown"></div>
+          <div class="sp-field"><label>Ore cost <span class="u">(gear lv 100→101)</span></label><input type="number" id="oreBase" value="8800" step="100"></div>
+          <div class="sp-field"><label>Ore increase / gear lv</label><input type="number" id="oreInc" value="100" step="10"></div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ═══ OPTIMAL PATH ═══ -->
+  <!-- OPTIMAL PATH -->
   <div class="sp-section">
     <h3>Optimal Path</h3>
     <div id="optOut"></div>
-    <div class="oc" id="oreCard" style="display:none">
-      <h4>Ore Budget</h4>
-      <div id="oreOut"></div>
-    </div>
+    <div class="oc" id="oreCard" style="display:none"><h4>Ore Budget</h4><div id="oreOut"></div></div>
   </div>
 
-  <!-- ═══ BREAKDOWN ═══ -->
+  <!-- BREAKDOWN -->
   <div class="sp-section">
     <h3>Projected Score Breakdown</h3>
-    <table class="bd-table">
-      <thead><tr><th>Category</th><th>Season Lv</th><th>Score</th></tr></thead>
-      <tbody id="bdBody"></tbody>
-    </table>
+    <table class="bd-table"><thead><tr><th>Category</th><th>Season Lv</th><th>Score</th></tr></thead><tbody id="bdBody"></tbody></table>
   </div>
 
-  <!-- ═══ MILESTONES ═══ -->
+  <!-- MILESTONES -->
   <div class="sp-section">
     <h3>Astral Pact Milestones</h3>
     <div class="mi-bar"><div class="mi-fill" id="miBar" style="width:0%"></div></div>
@@ -307,76 +213,127 @@
   </div>
 
   <div class="info-blk">
-    <strong>Formulas:</strong> Cultivation Score = Σ(season_level × rate). Rates: Character 100, Equipment 38, Skill 13, Fantomon 14, Relic 57. Primostars = floor(score ÷ 100) + 10 + historical. Milestones unlock every 5 Primostars. The optimizer pushes character level (free time) → skills (cheap, capped at char lv) → your fanto/relic projections → then fills the remaining gap with gear, minimizing ore spend.
+    <strong>Formulas:</strong> Score = Σ(season_level × rate). Rates and milestones are loaded from the database. Primostars = floor(score ÷ 100) + 10 + historical. Ore model verified from in-game data (8,800 base + 100/level). EXP model for season levels is not yet verified — enter your own values in Advanced if known. The optimizer pushes free categories first (char level → skills) then fills the gap with gear.
   </div>
+
+  </div><!-- /mainContent -->
 </div>
 
 <script>
-const SEASONS = {
-  1:{base:100,rb:10,label:'S1',region:'Witching Hours'},
-  2:{base:130,rb:13,label:'S2',region:'Loong Haven'},
-  3:{base:160,rb:16,label:'S3',region:'Feather Country'},
-  4:{base:190,rb:19,label:'S4',region:'Hapadi'},
-};
-const PTS = {char:100,gear:38,skill:13,fanto:14,relic:57};
-const CYCLE = [
-  'ATK +1%','Gear Drop Ascension +3%','DEF +1%','Gem Drop Rate +5%',
-  'HP +1%','Dungeon 2x Reward +2%','SPD +1%','EXP Gain +2%',
-];
+const SB='https://ysxbglavmdngayvinrzk.supabase.co/rest/v1';
+const SK='sb_publishable_w9keP2-21tJKR6FcF0YIQA_6q3ykBk-';
+const HD={'apikey':SK,'Authorization':'Bearer '+SK};
 
-// Milestones: every 5 Primostars, starting at 5
-function genMilestones(cap) {
-  const out = [];
-  for (let n = 1; n * 5 <= cap; n++) {
-    out.push({ stars: n * 5, reward: CYCLE[(n - 1) % 8] });
+let SEASONS={},PTS={},CYCLE=[],MILESTONES=[];
+let EXP_MODEL={base:0,inc:0},ORE_MODEL={base:8800,inc:100},STAR_FORMULA={divisor:100,bonus:10};
+let dataReady=false;
+
+async function loadData(){
+  try{
+    const [cfgR,miR]=await Promise.all([
+      fetch(SB+'/season_config?select=key,value',{headers:HD}),
+      fetch(SB+'/season_milestones?select=stars,reward,cycle,position&order=stars.asc',{headers:HD})
+    ]);
+    if(!cfgR.ok||!miR.ok) throw new Error('HTTP '+cfgR.status+'/'+miR.status);
+    const cfg=await cfgR.json(); MILESTONES=await miR.json();
+    const c={};cfg.forEach(r=>c[r.key]=typeof r.value==='string'?JSON.parse(r.value):r.value);
+    PTS=c.point_rates||PTS;
+    SEASONS=c.season_bases||SEASONS;
+    EXP_MODEL=c.exp_model||EXP_MODEL;
+    ORE_MODEL=c.ore_model||ORE_MODEL;
+    STAR_FORMULA=c.primostar_formula||STAR_FORMULA;
+    CYCLE=MILESTONES.filter(m=>m.cycle===1).sort((a,b)=>a.position-b.position).map(m=>m.reward);
+    dataReady=true;
+    $('loadMsg').style.display='none';
+    $('mainContent').style.display='';
+    // Populate advanced fields from config
+    if(EXP_MODEL.base){$('expBase').value=EXP_MODEL.base}
+    if(EXP_MODEL.inc){$('expInc').value=EXP_MODEL.inc}
+    if(ORE_MODEL.base){$('oreBase').value=ORE_MODEL.base}
+    if(ORE_MODEL.inc){$('oreInc').value=ORE_MODEL.inc}
+    buildSeasonPicker();
+    populateTargets();
+    calc();
+  }catch(e){
+    $('loadMsg').innerHTML='<div style="color:var(--bad,#e05252);padding:40px;text-align:center">Failed to load: '+e.message+'<br><small>Check Supabase connection</small></div>';
   }
-  return out;
 }
 
-let curS = 1;
-function S(){return SEASONS[curS]}
+function genMilestones(cap){return MILESTONES.filter(m=>m.stars<=cap)}
+
+let curS=1;
+function S(){return SEASONS[curS]||{base:100,rb:10,label:'S1',region:'—'}}
 function $(id){return document.getElementById(id)}
 function v(id){return Math.max(+($(id).value)||0,0)}
 
-// EXP model
-function expFor(L){return v('expBase')+(L-100)*v('expInc')}
+// EXP model — blank = can't project
+function expFor(L){const b=v('expBase'),i=v('expInc');if(!b&&!i)return Infinity;return b+L*i}
 function projLevel(curLv,curExp,expGain){
-  let lv=curLv,exp=curExp+expGain;
-  while(lv<400){const n=expFor(lv);if(exp<n)break;exp-=n;lv++}
-  return {level:lv,exp:Math.floor(exp)};
+  if(!v('expBase')&&!v('expInc'))return{level:curLv,exp:curExp};
+  const base=S().base;let lv=curLv,exp=curExp+expGain;
+  while(lv<base+200){const n=expFor(lv-base);if(exp<n)break;exp-=n;lv++}
+  return{level:lv,exp:Math.floor(exp)};
 }
 
-// Ore model
-function oreCost1(L){return v('oreBase')+(L-101)*v('oreInc')} // cost to upgrade TO level L
-function oreRange(from,to){
-  if(to<=from)return 0;
-  let t=0;for(let L=from+1;L<=to;L++)t+=Math.max(0,oreCost1(L));return t;
+// Ore model — verified: 8800 base + 100/level
+function oreCost1(L){const b=v('oreBase'),i=v('oreInc');if(!b&&!i)return 0;return b+(L-101)*i}
+function oreRange(from,to){if(to<=from)return 0;let t=0;for(let L=from+1;L<=to;L++)t+=Math.max(0,oreCost1(L));return t}
+
+// ═══ OCR ═══
+function preprocessImage(img){
+  const s=2,c=document.createElement('canvas');c.width=img.naturalWidth*s;c.height=img.naturalHeight*s;
+  const ctx=c.getContext('2d');ctx.imageSmoothingEnabled=false;ctx.drawImage(img,0,0,c.width,c.height);
+  const d=ctx.getImageData(0,0,c.width,c.height),px=d.data;
+  let lo=255,hi=0;
+  for(let i=0;i<px.length;i+=4){const g=.299*px[i]+.587*px[i+1]+.114*px[i+2];if(g<lo)lo=g;if(g>hi)hi=g}
+  const rng=hi-lo||1;
+  for(let i=0;i<px.length;i+=4){for(let ch=0;ch<3;ch++)px[i+ch]=Math.min(255,Math.max(0,((px[i+ch]-lo)/rng)*255))}
+  ctx.putImageData(d,0,0);return c;
+}
+async function onOCR(files){
+  if(!files||!files.length)return;
+  const zone=$('ocrZone'),status=$('ocrStatus');
+  zone.classList.add('processing');status.textContent='Processing image…';status.style.color='';
+  try{
+    const img=new Image();img.src=URL.createObjectURL(files[0]);
+    await new Promise((r,j)=>{img.onload=r;img.onerror=j});
+    status.textContent='Running OCR…';
+    const canvas=preprocessImage(img);URL.revokeObjectURL(img.src);
+    const result=await Tesseract.recognize(canvas,'eng',{
+      logger:m=>{if(m.status==='recognizing text')status.textContent='Recognizing… '+Math.round(m.progress*100)+'%'}
+    });
+    const text=result.data.text;console.log('OCR text:',text);
+    status.textContent='Parsing…';let filled=[];
+    const pats=[
+      {field:'sCharLv',rx:/Character\s*Level\s*[\n\r]*\s*(\d+)/i,label:'Character'},
+      {field:'sGearLv',rx:/Gear\s*Level\s*[\n\r]*\s*(\d+)/i,label:'Gear'},
+      {field:'sSkillLv',rx:/Skill\s*Level\s*[\n\r]*\s*(\d+)/i,label:'Skill'},
+      {field:'sFantoLv',rx:/Fantomon\s*Level\s*[\n\r]*\s*(\d+)/i,label:'Fantomon'},
+      {field:'sRelicLv',rx:/Relic\s*Level\s*[\n\r]*\s*(\d+)/i,label:'Relic'},
+    ];
+    for(const p of pats){const m=text.match(p.rx);if(m){$(p.field).value=m[1];filled.push(p.label+': '+m[1])}}
+    const tm=text.match(/(?:Ends?\s*in|Claimable\s*in)\s*(\d+)\s*d\s*(\d+)\s*h/i);
+    if(tm){$('daysLeft').value=tm[1];$('hrsLeft').value=tm[2];filled.push('Time: '+tm[1]+'d '+tm[2]+'h')}
+    if(filled.length>0){status.textContent='Filled: '+filled.join(', ');status.style.color='#6ec77a';if(dataReady)calc()}
+    else{status.textContent='Could not parse. Try a clearer screenshot of the Progression tab.';status.style.color='var(--bad,#e05252)'}
+  }catch(e){console.error('OCR error:',e);status.textContent='OCR failed: '+e.message;status.style.color='var(--bad,#e05252)'}
+  finally{zone.classList.remove('processing');zone.querySelector('input[type=file]').value='';setTimeout(()=>{status.style.color=''},8000)}
 }
 
+// ═══ TARGETS ═══
 function populateTargets(){
   const sel=$('targetSel');sel.innerHTML='';
-  const ms=genMilestones(600);
-  for(const m of ms){
-    const o=document.createElement('option');
-    o.value=m.stars;o.textContent=`${m.stars} ✦ — ${m.reward}`;
-    sel.appendChild(o);
+  for(const m of genMilestones(600)){
+    const o=document.createElement('option');o.value=m.stars;o.textContent=m.stars+' ✦ — '+m.reward;sel.appendChild(o);
   }
-  sel.value='220'; // reasonable S1 default
+  sel.value='220';
 }
 
+// ═══ MAIN CALC ═══
 function calc(){
   const s=S(),base=s.base;
-
-  // ── Current score (from season levels) ──────────
-  const sChar=v('sCharLv'), sGear=v('sGearLv'), sSkill=v('sSkillLv');
-  const sFanto=v('sFantoLv'), sRelic=v('sRelicLv');
-  const hist=v('histStars');
-
-  const charScore=sChar*PTS.char;
-  const gearScore=sGear*PTS.gear;
-  const skillScore=sSkill*PTS.skill;
-  const fantoScore=sFanto*PTS.fanto;
-  const relicScore=sRelic*PTS.relic;
+  const sChar=v('sCharLv'),sGear=v('sGearLv'),sSkill=v('sSkillLv'),sFanto=v('sFantoLv'),sRelic=v('sRelicLv'),hist=v('histStars');
+  const charScore=sChar*PTS.char,gearScore=sGear*PTS.gear,skillScore=sSkill*PTS.skill,fantoScore=sFanto*PTS.fanto,relicScore=sRelic*PTS.relic;
   const curTotal=charScore+gearScore+skillScore+fantoScore+relicScore;
 
   $('charPts').textContent=charScore.toLocaleString()+' pts';
@@ -385,196 +342,135 @@ function calc(){
   $('fantoPts').textContent=fantoScore.toLocaleString()+' pts';
   $('relicPts').textContent=relicScore.toLocaleString()+' pts';
 
-  const seasonStars=Math.floor(curTotal/100)+10;
+  const seasonStars=Math.floor(curTotal/STAR_FORMULA.divisor)+STAR_FORMULA.bonus;
   const totalStars=seasonStars+hist;
+  $('totalStars').textContent=totalStars;$('totalScore').textContent=curTotal.toLocaleString();
+  $('seasonStars').textContent=seasonStars;$('histOut').textContent=hist;
 
-  $('totalStars').textContent=totalStars;
-  $('totalScore').textContent=curTotal.toLocaleString();
-  $('seasonStars').textContent=seasonStars;
-  $('histOut').textContent=hist;
-
-  // ── Target ──────────────────────────────────────
+  // Target
   const manVal=$('targetMan').value.trim();
   const targetStars=manVal?+manVal:+$('targetSel').value;
-  const targetScore=Math.max(0,(targetStars-10-hist)*100);
+  const targetScore=Math.max(0,(targetStars-STAR_FORMULA.bonus-hist)*STAR_FORMULA.divisor);
   $('targetScoreOut').textContent=targetScore.toLocaleString();
   const gap=targetScore-curTotal;
   $('gapOut').textContent=gap>0?'+'+gap.toLocaleString()+' needed':'Already met ✓';
   $('gapOut').className='rv '+(gap>0?'':'good');
 
-  // ── Planner / optimizer ─────────────────────────
+  // Planner
   const days=v('daysLeft'),extraH=v('hrsLeft'),accel=v('accelHrs'),saveH=v('saveHrs');
   const totalH=days*(24+accel)+extraH;
   const effH=Math.max(0,totalH-saveH);
-  const expGain=effH*v('expHr');
-
   const actChar=Math.max(v('actCharLv'),base);
-  const proj=projLevel(actChar,v('curExp'),expGain);
+  const proj=projLevel(actChar,v('curExp'),effH*v('expHr'));
+  const hasExpModel=v('expBase')>0||v('expInc')>0;
   const projCharSL=proj.level-base;
-
-  // Skill projection: each slot can go to projected char level
   const skillSlots=Math.max(v('skillSlots'),1);
   const projSkillSL=skillSlots*(proj.level-base);
-
-  // Fanto/relic: user's projected values
-  const projFantoSL=v('projFanto');
-  const projRelicSL=v('projRelic');
-
-  const projCharScore=projCharSL*PTS.char;
-  const projSkillScore=projSkillSL*PTS.skill;
-  const projFantoScore=projFantoSL*PTS.fanto;
-  const projRelicScore=projRelicSL*PTS.relic;
+  const projFantoSL=v('projFanto'),projRelicSL=v('projRelic');
+  const projCharScore=projCharSL*PTS.char,projSkillScore=projSkillSL*PTS.skill;
+  const projFantoScore=projFantoSL*PTS.fanto,projRelicScore=projRelicSL*PTS.relic;
   const nonGearScore=projCharScore+projSkillScore+projFantoScore+projRelicScore;
-
   const gearScoreNeeded=Math.max(0,targetScore-nonGearScore);
   const gearSLNeeded=gearScoreNeeded>0?Math.ceil(gearScoreNeeded/PTS.gear):0;
 
-  // Current per-slot gear for ore calc
+  // Gear targets
   const gearActual=[0,1,2,3,4].map(i=>Math.max(v('g'+i),base));
   const curGearSLTotal=gearActual.reduce((a,g)=>a+(g-base),0);
-  const curGearScore2=curGearSLTotal*PTS.gear;
-
-  // Distribute needed gear SL across 5 slots (balanced from current)
   const extraGearSL=Math.max(0,gearSLNeeded-curGearSLTotal);
-  const perSlot=Math.floor(extraGearSL/5);
-  let rem=extraGearSL-perSlot*5;
-  const gearTargets=gearActual.map((g,i)=>{
-    const extra=perSlot+(i<rem?1:0);
-    return g+extra;
-  });
+  const perSlot=Math.floor(extraGearSL/5);let rem=extraGearSL-perSlot*5;
+  const gearTargets=gearActual.map((g,i)=>g+perSlot+(i<rem?1:0));
   const projGearSL=gearTargets.reduce((a,g)=>a+(g-base),0);
   const projGearScore=projGearSL*PTS.gear;
 
-  // Ore costs
+  // Ore
   let totalOreNeeded=0;
-  for(let i=0;i<5;i++){
-    if(gearTargets[i]>gearActual[i]) totalOreNeeded+=oreRange(gearActual[i],gearTargets[i]);
-  }
-
-  // Ore income
-  const cartInc=totalH*v('cartHr');
-  const mineInc=days*v('digsDay')*v('mineYield');
-  const hamInc=v('hamOwn')*v('hamYield');
+  for(let i=0;i<5;i++){if(gearTargets[i]>gearActual[i])totalOreNeeded+=oreRange(gearActual[i],gearTargets[i])}
+  const cartInc=totalH*v('cartHr'),mineInc=days*v('digsDay')*v('mineYield'),hamInc=v('hamOwn')*v('hamYield');
   const totalOreAvail=v('curOre')+cartInc+mineInc+hamInc;
   const oreSurp=totalOreAvail-totalOreNeeded;
 
-  // Projected total
   const projTotal=nonGearScore+projGearScore;
-  const projSStars=Math.floor(projTotal/100)+10;
+  const projSStars=Math.floor(projTotal/STAR_FORMULA.divisor)+STAR_FORMULA.bonus;
   const projTotalStars=projSStars+hist;
 
-  // ── Render optimizer ────────────────────────────
+  // Optimizer output
+  const hasOreModel=v('oreBase')>0||v('oreInc')>0;
   let oh='';
   if(gap<=0){
-    oh=`<div class="or"><span class="ol">Status</span><span class="ov" style="color:#6ec77a">Target already met with current levels</span></div>`;
-  } else {
-    oh+=`<div class="or"><span class="ol">Projected char level</span><span class="ov">${proj.level} (${effH.toLocaleString()}h effective, ${saveH}h saved)</span></div>`;
-    oh+=`<div class="or"><span class="ol">1. Character (free)</span><span class="ov">Season lv ${sChar} → ${projCharSL} (+${(projCharScore-charScore).toLocaleString()} pts)</span></div>`;
-    oh+=`<div class="or"><span class="ol">2. Skills (cheap, ${skillSlots} slots × lv ${proj.level})</span><span class="ov">Season lv ${sSkill} → ${projSkillSL} (+${(projSkillScore-skillScore).toLocaleString()} pts)</span></div>`;
-    oh+=`<div class="or"><span class="ol">3. Fantomons (projected)</span><span class="ov">Season lv ${projFantoSL} (${projFantoScore.toLocaleString()} pts)</span></div>`;
-    oh+=`<div class="or"><span class="ol">4. Relics (projected)</span><span class="ov">Season lv ${projRelicSL} (${projRelicScore.toLocaleString()} pts)</span></div>`;
-    oh+=`<div class="or" style="border-top:1px solid var(--bdr);padding-top:8px"><span class="ol">Non-gear subtotal</span><span class="ov acc">${nonGearScore.toLocaleString()} pts</span></div>`;
+    oh='<div class="or"><span class="ol">Status</span><span class="ov" style="color:#6ec77a">Target already met with current levels</span></div>';
+  }else{
+    if(hasExpModel) oh+='<div class="or"><span class="ol">Projected char level</span><span class="ov">'+proj.level+' ('+effH.toLocaleString()+'h effective, '+saveH+'h saved)</span></div>';
+    else oh+='<div class="or"><span class="ol">Projected char level</span><span class="ov" style="color:var(--tx3)">'+actChar+' (no EXP model — set in Advanced)</span></div>';
+    oh+='<div class="or"><span class="ol">1. Character (free)</span><span class="ov">Season lv '+sChar+' → '+projCharSL+' (+'+(projCharScore-charScore).toLocaleString()+' pts)</span></div>';
+    oh+='<div class="or"><span class="ol">2. Skills ('+skillSlots+' slots × lv '+proj.level+')</span><span class="ov">Season lv '+sSkill+' → '+projSkillSL+' (+'+(projSkillScore-skillScore).toLocaleString()+' pts)</span></div>';
+    oh+='<div class="or"><span class="ol">3. Fantomons (projected)</span><span class="ov">Season lv '+projFantoSL+' ('+projFantoScore.toLocaleString()+' pts)</span></div>';
+    oh+='<div class="or"><span class="ol">4. Relics (projected)</span><span class="ov">Season lv '+projRelicSL+' ('+projRelicScore.toLocaleString()+' pts)</span></div>';
+    oh+='<div class="or" style="border-top:1px solid var(--bdr);padding-top:8px"><span class="ol">Non-gear subtotal</span><span class="ov acc">'+nonGearScore.toLocaleString()+' pts</span></div>';
     if(gearScoreNeeded>0){
-      oh+=`<div class="or"><span class="ol">5. Gear needed</span><span class="ov">+${gearScoreNeeded.toLocaleString()} pts (${gearSLNeeded} season levels)</span></div>`;
-      oh+=`<div class="or"><span class="ol">Gear targets</span><span class="ov">${gearTargets.map((g,i)=>g>gearActual[i]?'<b style="color:var(--acc)">'+g+'</b>':''+g).join(' / ')}</span></div>`;
-    } else {
-      oh+=`<div class="or"><span class="ol">5. Gear</span><span class="ov" style="color:#6ec77a">No extra gear upgrades needed</span></div>`;
-    }
-    oh+=`<div class="or" style="border-top:1px solid var(--bdr);padding-top:8px"><span class="ol">Projected total</span><span class="ov acc">${projTotal.toLocaleString()} pts → ${projTotalStars} ✦</span></div>`;
+      oh+='<div class="or"><span class="ol">5. Gear needed</span><span class="ov">+'+gearScoreNeeded.toLocaleString()+' pts ('+gearSLNeeded+' season levels)</span></div>';
+      oh+='<div class="or"><span class="ol">Gear targets</span><span class="ov">'+gearTargets.map((g,i)=>g>gearActual[i]?'<b style="color:var(--acc)">'+g+'</b>':''+g).join(' / ')+'</span></div>';
+    }else oh+='<div class="or"><span class="ol">5. Gear</span><span class="ov" style="color:#6ec77a">No extra gear upgrades needed</span></div>';
+    oh+='<div class="or" style="border-top:1px solid var(--bdr);padding-top:8px"><span class="ol">Projected total</span><span class="ov acc">'+projTotal.toLocaleString()+' pts → '+projTotalStars+' ✦</span></div>';
   }
   $('optOut').innerHTML=oh;
 
-  // ── Ore budget ──────────────────────────────────
+  // Ore budget
   const oreCard=$('oreCard');
   if(totalOreNeeded>0||extraGearSL>0){
-    oreCard.style.display='';
-    let ohtml='';
-    ohtml+=`<div class="or"><span class="ol">Ore for gear targets</span><span class="ov">${totalOreNeeded.toLocaleString()}</span></div>`;
-    ohtml+=`<div class="or"><span class="ol">Current stockpile</span><span class="ov">${v('curOre').toLocaleString()}</span></div>`;
-    ohtml+=`<div class="or"><span class="ol">Cart (${totalH.toLocaleString()}h × ${v('cartHr')}/hr)</span><span class="ov">${cartInc.toLocaleString()}</span></div>`;
-    ohtml+=`<div class="or"><span class="ol">Mining (${days}d × ${v('digsDay')}/d × ${v('mineYield')})</span><span class="ov">${mineInc.toLocaleString()}</span></div>`;
-    ohtml+=`<div class="or"><span class="ol">Hammers (${v('hamOwn')} × ${v('hamYield')})</span><span class="ov">${hamInc.toLocaleString()}</span></div>`;
-    ohtml+=`<div class="or" style="border-top:1px solid var(--bdr);padding-top:8px"><span class="ol">Total available</span><span class="ov acc">${totalOreAvail.toLocaleString()}</span></div>`;
+    oreCard.style.display='';let o='';
+    if(!hasOreModel)o+='<div class="or"><span class="ol" style="color:var(--acc)">Ore cost model not set — set in Advanced</span><span class="ov"></span></div>';
+    o+='<div class="or"><span class="ol">Ore for gear targets</span><span class="ov">'+totalOreNeeded.toLocaleString()+'</span></div>';
+    o+='<div class="or"><span class="ol">Current stockpile</span><span class="ov">'+v('curOre').toLocaleString()+'</span></div>';
+    o+='<div class="or"><span class="ol">Cart ('+totalH.toLocaleString()+'h × '+v('cartHr')+'/hr)</span><span class="ov">'+cartInc.toLocaleString()+'</span></div>';
+    o+='<div class="or"><span class="ol">Mining ('+days+'d × '+v('digsDay')+'/d × '+v('mineYield')+')</span><span class="ov">'+mineInc.toLocaleString()+'</span></div>';
+    o+='<div class="or"><span class="ol">Hammers ('+v('hamOwn')+' × '+v('hamYield')+')</span><span class="ov">'+hamInc.toLocaleString()+'</span></div>';
+    o+='<div class="or" style="border-top:1px solid var(--bdr);padding-top:8px"><span class="ol">Total available</span><span class="ov acc">'+totalOreAvail.toLocaleString()+'</span></div>';
     const sc=oreSurp>=0?'good':'bad';
-    ohtml+=`<div class="or"><span class="ol">${oreSurp>=0?'Surplus':'Deficit'}</span><span class="ov ${sc}">${oreSurp>=0?'+':''}${oreSurp.toLocaleString()}</span></div>`;
-    if(oreSurp<0){
-      const hn=v('hamYield')>0?Math.ceil(-oreSurp/v('hamYield')):'∞';
-      ohtml+=`<div class="or"><span class="ol">Hammers still needed</span><span class="ov bad">${hn.toLocaleString()}</span></div>`;
-    }
-    $('oreOut').innerHTML=ohtml;
-  } else {
-    oreCard.style.display='none';
-  }
+    o+='<div class="or"><span class="ol">'+(oreSurp>=0?'Surplus':'Deficit')+'</span><span class="ov '+sc+'">'+(oreSurp>=0?'+':'')+oreSurp.toLocaleString()+'</span></div>';
+    if(oreSurp<0){const hn=v('hamYield')>0?Math.ceil(-oreSurp/v('hamYield')):'∞';o+='<div class="or"><span class="ol">Hammers still needed</span><span class="ov bad">'+hn.toLocaleString()+'</span></div>'}
+    $('oreOut').innerHTML=o;
+  }else oreCard.style.display='none';
 
-  // ── Breakdown ───────────────────────────────────
+  // Breakdown
   $('bdBody').innerHTML=[
-    ['Character',projCharSL,projCharScore],
-    ['Equipment (5 slots)',projGearSL,projGearScore],
-    ['Skills ('+skillSlots+' slots)',projSkillSL,projSkillScore],
-    ['Fantomons',projFantoSL,projFantoScore],
-    ['Relics',projRelicSL,projRelicScore],
-  ].map(([n,sl,sc])=>
-    `<tr><td>${n}</td><td style="color:var(--tx3)">${sl}</td><td style="text-align:right;color:var(--acc)">${sc.toLocaleString()}</td></tr>`
-  ).join('')+
-  `<tr class="total"><td>Projected Total</td><td></td><td style="text-align:right">${projTotal.toLocaleString()} → ${projTotalStars} ✦</td></tr>`;
+    ['Character',projCharSL,projCharScore],['Equipment (5 slots)',projGearSL,projGearScore],
+    ['Skills ('+skillSlots+' slots)',projSkillSL,projSkillScore],['Fantomons',projFantoSL,projFantoScore],['Relics',projRelicSL,projRelicScore],
+  ].map(([n,sl,sc])=>'<tr><td>'+n+'</td><td style="color:var(--tx3)">'+sl+'</td><td style="text-align:right;color:var(--acc)">'+sc.toLocaleString()+'</td></tr>').join('')+
+  '<tr class="total"><td>Projected Total</td><td></td><td style="text-align:right">'+projTotal.toLocaleString()+' → '+projTotalStars+' ✦</td></tr>';
 
-  // ── Milestones ──────────────────────────────────
-  renderMilestones(totalStars, projTotalStars, targetStars);
+  // Milestones
+  renderMilestones(totalStars,projTotalStars,targetStars);
 }
 
-function renderMilestones(curStars, projStars, target){
-  const displayStars = Math.max(curStars, projStars);
-  const ms=genMilestones(Math.max(displayStars+40,target+20,100));
-  let reached=-1;
-  for(let i=ms.length-1;i>=0;i--){if(displayStars>=ms[i].stars){reached=i;break}}
-
+function renderMilestones(curStars,projStars,target){
+  const ds=Math.max(curStars,projStars);
+  const ms=genMilestones(Math.max(ds+40,target+20,100));
+  let reached=-1;for(let i=ms.length-1;i>=0;i--){if(ds>=ms[i].stars){reached=i;break}}
   const show=new Set();
-  // Show every 4th (= 20-star intervals) for compact view
-  for(let i=3;i<ms.length;i+=4) show.add(i);
-  // Always show neighbors of current position
+  for(let i=3;i<ms.length;i+=4)show.add(i);
   for(let d=-1;d<=2;d++){const j=reached+d;if(j>=0&&j<ms.length)show.add(j)}
-  // Show target
   for(let i=0;i<ms.length;i++){if(ms[i].stars===target){show.add(i);if(i>0)show.add(i-1);break}}
-
-  const firstS=ms[[...show].sort((a,b)=>a-b)[0]]?.stars||5;
-  const lastS=ms[[...show].sort((a,b)=>b-a)[0]]?.stars||100;
-  const pct=lastS>firstS?Math.min(100,((displayStars-firstS)/(lastS-firstS))*100):100;
+  const sorted=[...show].sort((a,b)=>a-b);
+  const firstS=ms[sorted[0]]?.stars||5,lastS=ms[sorted[sorted.length-1]]?.stars||100;
+  const pct=lastS>firstS?Math.min(100,((ds-firstS)/(lastS-firstS))*100):100;
   $('miBar').style.width=Math.max(0,pct)+'%';
-
-  let html='';
-  for(const i of [...show].sort((a,b)=>a-b)){
-    const m=ms[i];if(!m)continue;
-    const isTgt=m.stars===target;
-    let sc,st;
-    if(displayStars>=m.stars){sc='done';st='✓'}
-    else if(i===reached+1){sc='next';st=(m.stars-displayStars)+' away'}
-    else{sc='far';st=(m.stars-displayStars)+' away'}
-    html+=`<div class="mi${isTgt?' tgt':''}"><span class="ms">${m.stars}✦</span><span class="mr">${m.reward}${isTgt?' ← target':''}</span><span class="mt ${sc}">${st}</span></div>`;
+  let h='';
+  for(const i of sorted){const m=ms[i];if(!m)continue;const isTgt=m.stars===target;let sc,st;
+    if(ds>=m.stars){sc='done';st='✓'}else if(i===reached+1){sc='next';st=(m.stars-ds)+' away'}else{sc='far';st=(m.stars-ds)+' away'}
+    h+='<div class="mi'+(isTgt?' tgt':'')+'"><span class="ms">'+m.stars+'✦</span><span class="mr">'+m.reward+(isTgt?' ← target':'')+'</span><span class="mt '+sc+'">'+st+'</span></div>';
   }
-  $('miList').innerHTML=html;
+  $('miList').innerHTML=h;
 }
 
-function setSeason(n){
-  curS=n;const s=SEASONS[n];
-  document.querySelectorAll('#sPick button').forEach(b=>b.classList.toggle('active',+b.dataset.s===n));
-  $('actCharLv').min=s.base;
-  [0,1,2,3,4].forEach(i=>{$('g'+i).min=s.base});
-  populateTargets();
-  calc();
-}
+// ═══ UI ═══
+function setSeason(n){curS=n;document.querySelectorAll('#sPick button').forEach(b=>b.classList.toggle('active',+b.dataset.s===n));
+  const s=S();$('actCharLv').min=s.base;[0,1,2,3,4].forEach(i=>{$('g'+i).min=s.base});populateTargets();calc()}
+function toggleAdv(){const b=$('advBody');b.classList.toggle('open');b.previousElementSibling.textContent=b.classList.contains('open')?'▾ Advanced formula constants':'▸ Advanced formula constants'}
+function buildSeasonPicker(){const p=$('sPick');p.innerHTML='';for(const k of Object.keys(SEASONS).sort()){const s=SEASONS[k],b=document.createElement('button');b.dataset.s=k;b.textContent=s.label||('S'+k);if(+k===curS)b.classList.add('active');b.addEventListener('click',()=>setSeason(+k));p.appendChild(b)}}
 
-function toggleAdv(){
-  const b=$('advBody');b.classList.toggle('open');
-  b.previousElementSibling.textContent=b.classList.contains('open')?'▾ Advanced formula constants':'▸ Advanced formula constants';
-}
-
-// Wire events
-document.querySelectorAll('#sPick button').forEach(b=>b.addEventListener('click',()=>setSeason(+b.dataset.s)));
-document.querySelectorAll('input,select').forEach(el=>el.addEventListener('input',calc));
-$('targetSel').addEventListener('change',function(){$('targetMan').value='';calc()});
-
-populateTargets();
-calc();
+document.querySelectorAll('input,select').forEach(el=>el.addEventListener('input',()=>{if(dataReady)calc()}));
+$('targetSel').addEventListener('change',function(){$('targetMan').value='';if(dataReady)calc()});
+loadData();
 </script>
 </body>
 </html>
