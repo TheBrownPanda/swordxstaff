@@ -284,10 +284,12 @@ function preprocessImage(img){
   const s=2,c=document.createElement('canvas');c.width=img.naturalWidth*s;c.height=img.naturalHeight*s;
   const ctx=c.getContext('2d');ctx.imageSmoothingEnabled=false;ctx.drawImage(img,0,0,c.width,c.height);
   const d=ctx.getImageData(0,0,c.width,c.height),px=d.data;
-  let lo=255,hi=0;
-  for(let i=0;i<px.length;i+=4){const g=.299*px[i]+.587*px[i+1]+.114*px[i+2];if(g<lo)lo=g;if(g>hi)hi=g}
-  const rng=hi-lo||1;
-  for(let i=0;i<px.length;i+=4){for(let ch=0;ch<3;ch++)px[i+ch]=Math.min(255,Math.max(0,((px[i+ch]-lo)/rng)*255))}
+  // Binary threshold: light text on dark background → keep only bright pixels
+  for(let i=0;i<px.length;i+=4){
+    const g=.299*px[i]+.587*px[i+1]+.114*px[i+2];
+    const v=g>100?255:0; // threshold at ~40% brightness
+    px[i]=px[i+1]=px[i+2]=v;
+  }
   ctx.putImageData(d,0,0);return c;
 }
 async function onOCR(files){
@@ -303,66 +305,71 @@ async function onOCR(files){
       logger:m=>{if(m.status==='recognizing text')status.textContent='Recognizing… '+Math.round(m.progress*100)+'%'}
     });
     const text=result.data.text;
-    const words=result.data.words||[];
     console.log('OCR text:',text);
-    console.log('OCR words:',words.length);
     status.textContent='Parsing…';
     let filled=[];
 
-    // Spatial matching: find label keywords, then find the closest number below each
-    const labelMap=[
-      {key:'character',field:'sCharLv',label:'Character'},
-      {key:'gear',field:'sGearLv',label:'Gear'},
-      {key:'skill',field:'sSkillLv',label:'Skill'},
-      {key:'fantomon',field:'sFantoLv',label:'Fantomon'},
-      {key:'relic',field:'sRelicLv',label:'Relic'},
+    // Strategy: find all "NUMBER pts" in text order.
+    // Game layout reads top→bottom, left→right as:
+    //   Character(top), Gear(mid-left), Skill(mid-right), Fantomon(bot-left), Relic(bot-right)
+    const ptsMatches=[...text.matchAll(/([\d,]+)\s*pts/gi)];
+    const ptsValues=ptsMatches.map(m=>parseInt(m[1].replace(/,/g,'')));
+    console.log('Pts values found:',ptsValues);
+
+    // Category order matching the game's visual layout (OCR read order)
+    const catOrder=[
+      {field:'sCharLv', rate:PTS.char||100, label:'Character'},
+      {field:'sGearLv', rate:PTS.gear||38, label:'Gear'},
+      {field:'sSkillLv', rate:PTS.skill||13, label:'Skill'},
+      {field:'sFantoLv', rate:PTS.fanto||14, label:'Fantomon'},
+      {field:'sRelicLv', rate:PTS.relic||57, label:'Relic'},
     ];
 
-    // Collect label positions (center-x of the keyword, bottom-y)
-    const labelPos={};
-    for(const w of words){
-      const t=w.text.toLowerCase().replace(/[^a-z]/g,'');
-      for(const lm of labelMap){
-        if(t===lm.key && !labelPos[lm.key]){
-          labelPos[lm.key]={x:(w.bbox.x0+w.bbox.x1)/2, y:w.bbox.y1, field:lm.field, label:lm.label};
+    if(ptsValues.length>=5){
+      // Positional mapping: first 5 pts values → categories in layout order
+      for(let i=0;i<5;i++){
+        const pts=ptsValues[i], cat=catOrder[i];
+        let lv;
+        if(cat.rate===100){
+          // Character: partial EXP, so floor instead of round
+          lv=Math.floor(pts/cat.rate);
+        }else{
+          lv=Math.round(pts/cat.rate);
+        }
+        if(lv>0){
+          $(cat.field).value=lv;
+          filled.push(cat.label+': '+lv);
+        }
+      }
+    }else if(ptsValues.length>0){
+      // Fewer than 5 pts values found — try rate-based matching
+      // Check each pts value against each rate; take exact matches first
+      const used=new Set();
+      // Check non-char categories first (exact division)
+      for(const cat of catOrder.filter(c=>c.rate!==100)){
+        for(let j=0;j<ptsValues.length;j++){
+          if(used.has(j))continue;
+          const lv=ptsValues[j]/cat.rate;
+          if(Number.isInteger(lv)&&lv>0&&lv<2000){
+            $(cat.field).value=lv;
+            filled.push(cat.label+': '+lv);
+            used.add(j);break;
+          }
+        }
+      }
+      // Remaining unmatched → try as character
+      for(let j=0;j<ptsValues.length;j++){
+        if(used.has(j))continue;
+        const lv=Math.floor(ptsValues[j]/100);
+        if(lv>0&&lv<200){
+          $('sCharLv').value=lv;
+          filled.push('Character: '+lv);
+          break;
         }
       }
     }
 
-    // Collect all number words (excluding "pts" — check if next word is "pts")
-    const numWords=[];
-    for(let i=0;i<words.length;i++){
-      const w=words[i];
-      if(!/^\d+$/.test(w.text))continue;
-      // Skip if this number is followed by "pts"
-      const nextW=words[i+1];
-      if(nextW && /^pts?$/i.test(nextW.text.replace(/[^a-z]/gi,'')))continue;
-      numWords.push({val:parseInt(w.text),x:(w.bbox.x0+w.bbox.x1)/2,y:(w.bbox.y0+w.bbox.y1)/2,idx:i});
-    }
-
-    // For each label, find the nearest number that is below it
-    const used=new Set();
-    for(const lm of labelMap){
-      const pos=labelPos[lm.key];
-      if(!pos)continue;
-      let best=null,bestDist=Infinity;
-      for(const n of numWords){
-        if(used.has(n.idx))continue;
-        if(n.y<=pos.y)continue; // must be below the label
-        // Distance: weight horizontal distance more to penalize cross-column matches
-        const dx=Math.abs(n.x-pos.x);
-        const dy=n.y-pos.y;
-        const dist=dx*2+dy; // horizontal mismatch costs double
-        if(dist<bestDist){bestDist=dist;best=n}
-      }
-      if(best){
-        $(pos.field).value=best.val;
-        filled.push(pos.label+': '+best.val);
-        used.add(best.idx);
-      }
-    }
-
-    // Also try text-based fallback for time remaining
+    // Time remaining
     const tm=text.match(/(?:Ends?\s*in|Claimable\s*in)\s*(\d+)\s*d\s*(\d+)\s*h/i);
     if(tm){$('daysLeft').value=tm[1];$('hrsLeft').value=tm[2];filled.push('Time: '+tm[1]+'d '+tm[2]+'h')}
 
