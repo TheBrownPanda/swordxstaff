@@ -98,7 +98,7 @@
       <div class="sl">Primostars</div>
     </div>
     <div class="rr"><span class="rl">Cultivation Score</span><span class="rv acc" id="totalScore">0</span></div>
-    <div class="rr"><span class="rl">Season Stars</span><span class="rv" id="seasonStars">0</span></div>
+    <div class="rr"><span class="rl">Season Stars <span id="formulaLabel" style="color:var(--sp-tx3)"></span></span><span class="rv" id="seasonStars">0</span></div>
     <div class="rr"><span class="rl">Historical Stars</span><span class="rv" id="histOut">0</span></div>
   </div>
 
@@ -148,7 +148,7 @@ const SB='https://ysxbglavmdngayvinrzk.supabase.co/rest/v1';
 const SK='sb_publishable_w9keP2-21tJKR6FcF0YIQA_6q3ykBk-';
 const HD={'apikey':SK,'Authorization':'Bearer '+SK};
 
-let SEASONS={},PTS={},CYCLE=[],MILESTONES=[],STAR_FORMULA={divisor:100,bonus:10};
+let SEASONS={},PTS={},CYCLE=[],MILESTONES=[];
 let dataReady=false;
 
 async function loadData(){
@@ -162,7 +162,6 @@ async function loadData(){
     const c={};cfg.forEach(r=>c[r.key]=typeof r.value==='string'?JSON.parse(r.value):r.value);
     PTS=c.point_rates||PTS;
     SEASONS=c.season_bases||SEASONS;
-    STAR_FORMULA=c.primostar_formula||STAR_FORMULA;
     CYCLE=MILESTONES.filter(m=>m.cycle===1).sort((a,b)=>a.position-b.position).map(m=>m.reward);
     dataReady=true;
     $('loadMsg').style.display='none';
@@ -204,17 +203,19 @@ function calc(){
   $('fantoPts').textContent=fantoScore.toLocaleString()+' pts';
   $('relicPts').textContent=relicScore.toLocaleString()+' pts';
 
-  const seasonStars=Math.floor(curTotal/STAR_FORMULA.divisor)+STAR_FORMULA.bonus;
+  const s=S(), div=s.divisor||100, bon=s.bonus||10;
+  const seasonStars=Math.floor(curTotal/div)+bon;
   const totalStars=seasonStars+hist;
   $('totalStars').textContent=totalStars;
   $('totalScore').textContent=curTotal.toLocaleString();
   $('seasonStars').textContent=seasonStars;
   $('histOut').textContent=hist;
+  $('formulaLabel').textContent='(score ÷ '+div+' + '+bon+')';
 
   // Target
   const manVal=$('targetMan').value.trim();
   const targetStars=manVal?+manVal:+$('targetSel').value;
-  const targetScore=Math.max(0,(targetStars-STAR_FORMULA.bonus-hist)*STAR_FORMULA.divisor);
+  const targetScore=Math.max(0,(targetStars-bon-hist)*div);
   $('targetScoreOut').textContent=targetScore.toLocaleString();
   const gap=targetScore-curTotal;
   $('gapOut').textContent=gap>0?'+'+gap.toLocaleString()+' needed':'Already met ✓';
